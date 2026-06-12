@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro de Despachos</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f0;
+      color: #1a1a1a;
+      padding: 16px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: #2e7d32;
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header .titulo { flex: 1; text-align: center; }
+    header h1 { font-size: 1.2rem; }
+    header p  { font-size: 0.85rem; opacity: 0.85; margin-top: 4px; }
+    header img { height: 46px; width: auto; flex-shrink: 0; }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    label.campo {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #2e7d32;
+      margin-bottom: 6px;
+    }
+
+    input[type="date"], input[type="text"], select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #c8e6c9;
+      border-radius: 6px;
+      font-size: 1rem;
+      margin-bottom: 14px;
+    }
+
+    .stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .btn-seleccionar {
+      font-size: 0.78rem;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    #filtro-pcr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .btn-pcr {
+      padding: 6px 14px;
+      border: 1px solid #a5d6a7;
+      border-radius: 20px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .btn-pcr.activo {
+      background: #2e7d32;
+      color: white;
+      border-color: #2e7d32;
+    }
+
+    /* --- Escaneo en vivo --- */
+    .btn-escanear {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background: #1b5e20;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    #reader {
+      display: none;
+      width: 100%;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    #btn-cerrar-scanner {
+      display: none;
+      width: 100%;
+      padding: 8px;
+      background: #c62828;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+
+    #serie-escaneada {
+      display: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    #contador {
+      font-size: 0.85rem;
+      color: #2e7d32;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .serie-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .serie-item.escaneada {
+      border-color: #2e7d32;
+      background: #f1f8f1;
+    }
+
+    .serie-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin: 0 12px 0 0;
+      accent-color: #2e7d32;
+      flex-shrink: 0;
+    }
+
+    .serie-info { flex: 1; }
+    .serie-codigo { font-weight: bold; font-size: 0.95rem; }
+    .serie-desc   { font-size: 0.8rem; color: #666; margin-top: 2px; }
+
+    .empty   { text-align: center; color: #999; font-size: 0.9rem; padding: 20px 0; }
+    .loading { text-align: center; color: #999; padding: 20px 0; font-size: 0.9rem; }
+
+    .btn-enviar {
+      width: 100%;
+      padding: 14px;
+      background: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .btn-enviar:disabled { background: #a5d6a7; cursor: not-allowed; }
+
+    #mensaje {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      text-align: center;
+      display: none;
+    }
+
+    .ok    { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img id="logo" alt="" style="display:none">
+    <div class="titulo">
+      <h1>Registro de Despachos</h1>
+      <p>RECUPAC — Selecciona las series a despachar</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <label class="campo" for="fecha">Fecha de despacho</label>
+    <input type="date" id="fecha">
+
+    <label class="campo" for="responsable">Responsable</label>
+    <select id="responsable">
+      <option value="">-- Seleccionar --</option>
+      <option>Ariel P.</option>
+      <option>Willians T.</option>
+      <option>Evens F.</option>
+    </select>
+
+    <label class="campo" for="cliente">Cliente / Destino</label>
+    <input type="text" id="cliente" placeholder="Ingresa el cliente o destino">
+  </div>
+
+  <div class="card">
+    <div class="stock-header">
+      <label class="campo" style="margin:0">Series en stock</label>
+      <button class="btn-seleccionar" onclick="toggleSeleccion()">Seleccionar todo</button>
+    </div>
+
+    <div id="filtro-pcr">
+      <button class="btn-pcr activo" onclick="filtrar('TODOS')">Todos</button>
+      <button class="btn-pcr" onclick="filtrar('PCR10')">PCR10</button>
+      <button class="btn-pcr" onclick="filtrar('PCR15')">PCR15</button>
+      <button class="btn-pcr" onclick="filtrar('PCR20')">PCR20</button>
+      <button class="btn-pcr" onclick="filtrar('PCR30')">PCR30</button>
+    </div>
+
+    <!-- Escaneo en vivo -->
+    <button class="btn-escanear" onclick="iniciarEscaneo()">📷 Escanear código QR</button>
+    <div id="reader"></div>
+    <button id="btn-cerrar-scanner" onclick="detenerEscaneo()">✕ Cerrar cámara</button>
+    <div id="serie-escaneada"></div>
+
+    <div id="contador">0 series seleccionadas</div>
+    <div id="lista-series">
+      <div class="loading">Cargando stock...</div>
+    </div>
+  </div>
+
+  <button class="btn-enviar" id="btn-enviar" onclick="enviar()" disabled>
+    Registrar Despacho
+  </button>
+
+  <div id="mensaje"></div>
+
+<script>
+  // ⚠️ URL /exec de la Web App de Apps Script
+  const API_URL = "https://script.google.com/macros/s/AKfycbyxu1lXFdoOqdCc0ihNg8vXFYJbsord661qx2b_gVdZz-HHvKgdmkXGED5MfFJMqNNczA/exec";
+
+  let stockData        = [];
+  let todoSeleccionado = false;
+  let filtroActivo     = "TODOS";
+  let html5Qr          = null;
+  let ultimaLeida      = "";
+
+  window.onload = () => {
+    cargarLogo();
+    cargarStock();
+  };
+
+  // ============================================================
+  // LOGO
+  // ============================================================
+  function cargarLogo() {
+    fetch(API_URL + "?action=logo")
+      .then(r => r.json())
+      .then(data => {
+        if (data.logo) {
+          const logo = document.getElementById("logo");
+          logo.src = data.logo;
+          logo.style.display = "block";
+        }
+      })
+      .catch(() => {});
+  }
+
+  // ============================================================
+  // ESCANEO EN VIVO con html5-qrcode
+  // ============================================================
+  function iniciarEscaneo() {
+    document.getElementById("reader").style.display = "block";
+    document.getElementById("btn-cerrar-scanner").style.display = "block";
+    ultimaLeida = "";
+
+    html5Qr = new Html5Qrcode("reader");
+    html5Qr.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (textoLeido) => {
+        const serie = textoLeido.trim();
+        // Evita re-procesar la misma serie de forma inmediata
+        if (serie === ultimaLeida) return;
+        ultimaLeida = serie;
+        procesarSerieEscaneada(serie);
+      },
+      () => {} // ignora errores de cada frame sin lectura
+    ).catch(err => {
+      mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
+      detenerEscaneo();
+    });
+  }
+
+  function detenerEscaneo() {
+    if (html5Qr) {
+      html5Qr.stop().then(() => {
+        html5Qr.clear();
+        html5Qr = null;
+      }).catch(() => { html5Qr = null; });
+    }
+    document.getElementById("reader").style.display = "none";
+    document.getElementById("btn-cerrar-scanner").style.display = "none";
+  }
+
+  function procesarSerieEscaneada(serie) {
+    const idx = stockData.findIndex(item => item.serie === serie);
+    if (idx === -1) {
+      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock actual (o filtro PCR distinto).", "error");
+      setTimeout(() => { ultimaLeida = ""; }, 1500);
+      return;
+    }
+    document.getElementById("cb" + idx).checked = true;
+    document.getElementById("item" + idx).classList.add("escaneada");
+    actualizarContador();
+    document.getElementById("item" + idx).scrollIntoView({ behavior: "smooth", block: "center" });
+    mostrarInfoEscaneo("✅ Serie " + serie + " seleccionada. Puedes escanear la siguiente.", "ok");
+    // Permite escanear otra saca pasado un instante
+    setTimeout(() => { ultimaLeida = ""; }, 1500);
+  }
+
+  function mostrarInfoEscaneo(texto, tipo) {
+    const el = document.getElementById("serie-escaneada");
+    el.textContent   = texto;
+    el.style.display = "block";
+    if (tipo === "ok") {
+      el.style.background = "#e8f5e9"; el.style.color = "#2e7d32"; el.style.border = "1px solid #a5d6a7";
+    } else {
+      el.style.background = "#ffebee"; el.style.color = "#c62828"; el.style.border = "1px solid #ef9a9a";
+    }
+  }
+
+  // ============================================================
+  // STOCK
+  // ============================================================
+  function cargarStock() {
+    document.getElementById("lista-series").innerHTML = '<div class="loading">Cargando stock...</div>';
+    fetch(API_URL + "?action=stock&pcr=" + encodeURIComponent(filtroActivo))
+      .then(r => r.json())
+      .then(renderStock)
+      .catch(err => {
+        document.getElementById("lista-series").innerHTML =
+          '<div class="empty">Error al cargar el stock: ' + err.message + '</div>';
+      });
+  }
+
+  function renderStock(data) {
+    stockData = data;
+    const lista = document.getElementById("lista-series");
+
+    if (!data || data.length === 0) {
+      lista.innerHTML = '<div class="empty">No hay series en stock para este tipo de PCR.</div>';
+      actualizarContador();
+      return;
+    }
+
+    lista.innerHTML = data.map((item, i) => `
+      <div class="serie-item" id="item${i}" onclick="toggleCheck(${i})">
+        <input type="checkbox" id="cb${i}" onchange="actualizarContador()">
+        <div class="serie-info">
+          <div class="serie-codigo">${item.serie}</div>
+          <div class="serie-desc">${item.descripcion || "Sin descripción"}</div>
+        </div>
+      </div>
+    `).join("");
+
+    actualizarContador();
+  }
+
+  function filtrar(pcr) {
+    filtroActivo     = pcr;
+    todoSeleccionado = false;
+    document.querySelectorAll(".btn-pcr").forEach(btn => {
+      btn.classList.toggle("activo", btn.textContent === pcr || (pcr === "TODOS" && btn.textContent === "Todos"));
+    });
+    cargarStock();
+  }
+
+  function toggleCheck(i) {
+    const cb = document.getElementById("cb" + i);
+    cb.checked = !cb.checked;
+    actualizarContador();
+  }
+
+  function toggleSeleccion() {
+    todoSeleccionado = !todoSeleccionado;
+    stockData.forEach((_, i) => {
+      document.getElementById("cb" + i).checked = todoSeleccionado;
+    });
+    actualizarContador();
+  }
+
+  function actualizarContador() {
+    const n = stockData.filter((_, i) => document.getElementById("cb" + i)?.checked).length;
+    document.getElementById("contador").textContent = n + " series seleccionadas";
+    document.getElementById("btn-enviar").disabled = n === 0;
+  }
+
+  // ============================================================
+  // ENVÍO
+  // ============================================================
+  function enviar() {
+    const fecha       = document.getElementById("fecha").value;
+    const responsable = document.getElementById("responsable").value;
+    const cliente     = document.getElementById("cliente").value.trim();
+
+    if (!fecha || !responsable || !cliente) {
+      mostrarMensaje("Completa todos los campos antes de registrar.", "error");
+      return;
+    }
+
+    const seleccionadas = stockData
+      .filter((_, i) => document.getElementById("cb" + i)?.checked)
+      .map(item => ({ serie: item.serie, fila: item.fila }));
+
+    if (seleccionadas.length === 0) {
+      mostrarMensaje("Selecciona al menos una serie.", "error");
+      return;
+    }
+
+    document.getElementById("btn-enviar").disabled = true;
+    document.getElementById("btn-enviar").textContent = "Registrando...";
+
+    // Cuerpo como texto plano para evitar el preflight CORS
+    fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ series: seleccionadas, fecha, responsable, cliente })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok) {
+          mostrarMensaje("✅ " + res.cantidad + " series registradas correctamente.", "ok");
+        } else {
+          mostrarMensaje("Error: " + res.error, "error");
+        }
+        document.getElementById("btn-enviar").textContent = "Registrar Despacho";
+        cargarStock();
+      })
+      .catch(err => {
+        mostrarMensaje("Error al registrar: " + err.message, "error");
+        document.getElementById("btn-enviar").disabled = false;
+        document.getElementById("btn-enviar").textContent = "Registrar Despacho";
+      });
+  }
+
+  function mostrarMensaje(texto, tipo) {
+    const el = document.getElementById("mensaje");
+    el.textContent   = texto;
+    el.className     = tipo;
+    el.style.display = "block";
+    setTimeout(() => el.style.display = "none", 5000);
+  }
+</script>
+
+</body>
+</html>
