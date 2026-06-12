@@ -122,11 +122,26 @@
       overflow: hidden;
     }
 
+    .fila-scanner-botones { display: flex; gap: 8px; }
+
     #btn-cerrar-scanner {
       display: none;
-      width: 100%;
+      flex: 1;
       padding: 8px;
       background: #c62828;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+
+    #btn-linterna {
+      display: none;
+      flex: 1;
+      padding: 8px;
+      background: #455a64;
       color: white;
       border: none;
       border-radius: 6px;
@@ -251,7 +266,10 @@
     <!-- Escaneo en vivo -->
     <button class="btn-escanear" onclick="iniciarEscaneo()">📷 Escanear código QR</button>
     <div id="reader"></div>
-    <button id="btn-cerrar-scanner" onclick="detenerEscaneo()">✕ Cerrar cámara</button>
+    <div class="fila-scanner-botones">
+      <button id="btn-cerrar-scanner" onclick="detenerEscaneo()">✕ Cerrar cámara</button>
+      <button id="btn-linterna" onclick="toggleLinterna()">🔦 Linterna</button>
+    </div>
     <div id="serie-escaneada"></div>
 
     <div id="contador">0 series seleccionadas</div>
@@ -270,13 +288,23 @@
   // ⚠️ URL /exec de la Web App de Apps Script
   const API_URL = "https://script.google.com/macros/s/AKfycbyxu1lXFdoOqdCc0ihNg8vXFYJbsord661qx2b_gVdZz-HHvKgdmkXGED5MfFJMqNNczA/exec";
 
-  let stockData        = [];
-  let todoSeleccionado = false;
-  let filtroActivo     = "TODOS";
-  let html5Qr          = null;
-  let ultimaLeida      = "";
+  // Formato de serie de saca: 6 dígitos + letra + número (ej. 260611A1).
+  // La etiqueta tiene 2 QR: este patrón descarta el QR chico de Ficha Técnica (URL).
+  const RE_SERIE = /^\d{6}[A-Z]\d{1,3}$/;
+
+  // El stock COMPLETO se carga una sola vez (TODOS); el filtro PCR es solo visual.
+  // Así el escáner siempre encuentra la serie aunque el filtro esté en otro PCR,
+  // y las selecciones no se pierden al cambiar de filtro.
+  let stockData     = [];            // stock completo [{serie, descripcion, fila}]
+  let seleccionadas = new Set();     // series marcadas (sobrevive a filtros)
+  let filtroActivo  = "TODOS";
+  let html5Qr       = null;
+  let escaneoEnPausa = false;
+  let linternaOn    = false;
 
   window.onload = () => {
+    // Fecha de hoy por defecto
+    document.getElementById("fecha").value = new Date().toISOString().slice(0, 10);
     cargarLogo();
     cargarStock();
   };
@@ -303,21 +331,45 @@
   function iniciarEscaneo() {
     document.getElementById("reader").style.display = "block";
     document.getElementById("btn-cerrar-scanner").style.display = "block";
-    ultimaLeida = "";
+    escaneoEnPausa = false;
 
-    html5Qr = new Html5Qrcode("reader");
+    // Solo formato QR (por defecto intenta 17 formatos por cuadro = lento)
+    html5Qr = new Html5Qrcode("reader", {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      useBarCodeDetectorIfSupported: true
+    });
+
     html5Qr.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
+      {
+        fps: 10,
+        disableFlip: true,  // no reintentar el cuadro espejado (QR impresos)
+        // Recuadro de puntería proporcional a la pantalla
+        qrbox: (w, h) => {
+          const lado = Math.floor(Math.min(w, h) * 0.7);
+          return { width: lado, height: lado };
+        },
+        // Resolución alta: sin esto la cámara abre en ~640px y no decodifica a distancia
+        videoConstraints: {
+          facingMode: "environment",
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      },
       (textoLeido) => {
-        const serie = textoLeido.trim();
-        // Evita re-procesar la misma serie de forma inmediata
-        if (serie === ultimaLeida) return;
-        ultimaLeida = serie;
+        if (escaneoEnPausa) return;
+        const serie = String(textoLeido).trim().toUpperCase();
+        // Descarta el QR de Ficha Técnica (URL) y cualquier lectura basura
+        if (!RE_SERIE.test(serie)) return;
+        // Pausa breve anti doble-lectura de la misma saca
+        escaneoEnPausa = true;
+        setTimeout(() => { escaneoEnPausa = false; }, 1200);
         procesarSerieEscaneada(serie);
       },
       () => {} // ignora errores de cada frame sin lectura
-    ).catch(err => {
+    ).then(() => {
+      mostrarBotonLinternaSiSoportado();
+    }).catch(err => {
       mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
       detenerEscaneo();
     });
@@ -330,24 +382,55 @@
         html5Qr = null;
       }).catch(() => { html5Qr = null; });
     }
+    linternaOn = false;
     document.getElementById("reader").style.display = "none";
     document.getElementById("btn-cerrar-scanner").style.display = "none";
+    document.getElementById("btn-linterna").style.display = "none";
+  }
+
+  // Linterna para la bodega (si el teléfono la soporta)
+  function mostrarBotonLinternaSiSoportado() {
+    try {
+      const caps = html5Qr.getRunningTrackCameraCapabilities();
+      if (caps.torchFeature().isSupported()) {
+        document.getElementById("btn-linterna").style.display = "block";
+      }
+    } catch (e) { /* sin soporte: no mostrar */ }
+  }
+
+  function toggleLinterna() {
+    if (!html5Qr) return;
+    try {
+      const torch = html5Qr.getRunningTrackCameraCapabilities().torchFeature();
+      linternaOn = !linternaOn;
+      torch.apply(linternaOn);
+      document.getElementById("btn-linterna").textContent = linternaOn ? "🔦 Apagar linterna" : "🔦 Linterna";
+    } catch (e) { /* ignorar */ }
   }
 
   function procesarSerieEscaneada(serie) {
-    const idx = stockData.findIndex(item => item.serie === serie);
-    if (idx === -1) {
-      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock actual (o filtro PCR distinto).", "error");
-      setTimeout(() => { ultimaLeida = ""; }, 1500);
+    // Busca en el stock COMPLETO (el filtro PCR ya no esconde series al escáner)
+    const item = stockData.find(x => String(x.serie).trim().toUpperCase() === serie);
+    if (!item) {
+      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock (ya despachada o aún no subida a la planilla).", "error");
       return;
     }
-    document.getElementById("cb" + idx).checked = true;
-    document.getElementById("item" + idx).classList.add("escaneada");
-    actualizarContador();
-    document.getElementById("item" + idx).scrollIntoView({ behavior: "smooth", block: "center" });
-    mostrarInfoEscaneo("✅ Serie " + serie + " seleccionada. Puedes escanear la siguiente.", "ok");
-    // Permite escanear otra saca pasado un instante
-    setTimeout(() => { ultimaLeida = ""; }, 1500);
+    if (seleccionadas.has(item.serie)) {
+      mostrarInfoEscaneo("ℹ️ Serie " + serie + " ya estaba seleccionada.", "ok");
+      return;
+    }
+    seleccionadas.add(item.serie);
+    if (navigator.vibrate) navigator.vibrate(80);
+
+    // Si el filtro actual esconde esta serie, pasar a TODOS para que se vea
+    if (filtroActivo !== "TODOS" && item.descripcion !== filtroActivo) {
+      filtrar("TODOS");
+    } else {
+      renderStock();
+    }
+    const fila = document.querySelector('[data-serie="' + item.serie + '"]');
+    if (fila) fila.scrollIntoView({ behavior: "smooth", block: "center" });
+    mostrarInfoEscaneo("✅ Serie " + serie + " (" + (item.descripcion || "") + ") seleccionada. Puedes escanear la siguiente.", "ok");
   }
 
   function mostrarInfoEscaneo(texto, tipo) {
@@ -362,67 +445,81 @@
   }
 
   // ============================================================
-  // STOCK
+  // STOCK (se trae completo una vez; el filtro PCR es local)
   // ============================================================
   function cargarStock() {
     document.getElementById("lista-series").innerHTML = '<div class="loading">Cargando stock...</div>';
-    fetch(API_URL + "?action=stock&pcr=" + encodeURIComponent(filtroActivo))
+    fetch(API_URL + "?action=stock&pcr=TODOS")
       .then(r => r.json())
-      .then(renderStock)
+      .then(data => {
+        stockData = data || [];
+        // Limpia selecciones de series que ya no están en stock
+        const vigentes = new Set(stockData.map(x => x.serie));
+        seleccionadas.forEach(s => { if (!vigentes.has(s)) seleccionadas.delete(s); });
+        renderStock();
+      })
       .catch(err => {
         document.getElementById("lista-series").innerHTML =
           '<div class="empty">Error al cargar el stock: ' + err.message + '</div>';
       });
   }
 
-  function renderStock(data) {
-    stockData = data;
+  function renderStock() {
     const lista = document.getElementById("lista-series");
+    const visibles = filtroActivo === "TODOS"
+      ? stockData
+      : stockData.filter(x => x.descripcion === filtroActivo);
 
-    if (!data || data.length === 0) {
+    if (!visibles.length) {
       lista.innerHTML = '<div class="empty">No hay series en stock para este tipo de PCR.</div>';
       actualizarContador();
       return;
     }
 
-    lista.innerHTML = data.map((item, i) => `
-      <div class="serie-item" id="item${i}" onclick="toggleCheck(${i})">
-        <input type="checkbox" id="cb${i}" onchange="actualizarContador()">
+    lista.innerHTML = visibles.map(item => {
+      const sel = seleccionadas.has(item.serie);
+      return `
+      <div class="serie-item ${sel ? "escaneada" : ""}" data-serie="${item.serie}" onclick="toggleSerie('${item.serie}')">
+        <input type="checkbox" ${sel ? "checked" : ""} onclick="event.stopPropagation(); toggleSerie('${item.serie}')">
         <div class="serie-info">
           <div class="serie-codigo">${item.serie}</div>
           <div class="serie-desc">${item.descripcion || "Sin descripción"}</div>
         </div>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
 
     actualizarContador();
   }
 
   function filtrar(pcr) {
-    filtroActivo     = pcr;
-    todoSeleccionado = false;
+    filtroActivo = pcr;
     document.querySelectorAll(".btn-pcr").forEach(btn => {
       btn.classList.toggle("activo", btn.textContent === pcr || (pcr === "TODOS" && btn.textContent === "Todos"));
     });
-    cargarStock();
+    renderStock();  // local: no se pierden selecciones ni se vuelve a llamar al servidor
   }
 
-  function toggleCheck(i) {
-    const cb = document.getElementById("cb" + i);
-    cb.checked = !cb.checked;
-    actualizarContador();
+  function toggleSerie(serie) {
+    if (seleccionadas.has(serie)) seleccionadas.delete(serie);
+    else seleccionadas.add(serie);
+    renderStock();
   }
 
   function toggleSeleccion() {
-    todoSeleccionado = !todoSeleccionado;
-    stockData.forEach((_, i) => {
-      document.getElementById("cb" + i).checked = todoSeleccionado;
+    // Aplica solo a las series visibles según el filtro actual
+    const visibles = filtroActivo === "TODOS"
+      ? stockData
+      : stockData.filter(x => x.descripcion === filtroActivo);
+    const todasMarcadas = visibles.length > 0 && visibles.every(x => seleccionadas.has(x.serie));
+    visibles.forEach(x => {
+      if (todasMarcadas) seleccionadas.delete(x.serie);
+      else seleccionadas.add(x.serie);
     });
-    actualizarContador();
+    renderStock();
   }
 
   function actualizarContador() {
-    const n = stockData.filter((_, i) => document.getElementById("cb" + i)?.checked).length;
+    const n = seleccionadas.size;
     document.getElementById("contador").textContent = n + " series seleccionadas";
     document.getElementById("btn-enviar").disabled = n === 0;
   }
@@ -440,14 +537,14 @@
       return;
     }
 
-    const seleccionadas = stockData
-      .filter((_, i) => document.getElementById("cb" + i)?.checked)
-      .map(item => ({ serie: item.serie, fila: item.fila }));
-
-    if (seleccionadas.length === 0) {
+    if (seleccionadas.size === 0) {
       mostrarMensaje("Selecciona al menos una serie.", "error");
       return;
     }
+
+    // Solo se envía la serie: el backend ubica la fila por serie al momento
+    // de escribir (la fila puede haberse movido si alguien ordenó la planilla)
+    const series = Array.from(seleccionadas).map(serie => ({ serie }));
 
     document.getElementById("btn-enviar").disabled = true;
     document.getElementById("btn-enviar").textContent = "Registrando...";
@@ -455,14 +552,23 @@
     // Cuerpo como texto plano para evitar el preflight CORS
     fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify({ series: seleccionadas, fecha, responsable, cliente })
+      body: JSON.stringify({ series, fecha, responsable, cliente })
     })
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
-          mostrarMensaje("✅ " + res.cantidad + " series registradas correctamente.", "ok");
+          let msg = "✅ " + res.cantidad + " series registradas correctamente.";
+          // Backend v2: detalle por serie (rechazadas con motivo)
+          if (res.detalle) {
+            const rechazadas = res.detalle.filter(d => !d.ok);
+            if (rechazadas.length) {
+              msg += " ⚠️ Rechazadas: " + rechazadas.map(d => d.serie + " (" + d.motivo + ")").join(", ");
+            }
+          }
+          mostrarMensaje(msg, "ok");
+          seleccionadas.clear();
         } else {
-          mostrarMensaje("Error: " + res.error, "error");
+          mostrarMensaje("Error: " + (res.error || "desconocido"), "error");
         }
         document.getElementById("btn-enviar").textContent = "Registrar Despacho";
         cargarStock();
