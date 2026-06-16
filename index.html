@@ -206,9 +206,79 @@
 
     .ok    { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
     .error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+    /* --- Pantalla de bloqueo con PIN --- */
+    #bloqueo {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #2e7d32;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+
+    #bloqueo h2 {
+      color: white;
+      font-size: 1.3rem;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    #bloqueo p {
+      color: #e8f5e9;
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    #pin-input {
+      width: 100%;
+      max-width: 280px;
+      padding: 14px;
+      font-size: 1.4rem;
+      text-align: center;
+      letter-spacing: 8px;
+      border: none;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    #btn-desbloquear {
+      width: 100%;
+      max-width: 280px;
+      padding: 14px;
+      background: #1b5e20;
+      color: white;
+      border: 2px solid white;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #pin-error {
+      color: #ffcdd2;
+      font-size: 0.85rem;
+      margin-top: 12px;
+      height: 18px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Pantalla de bloqueo con PIN -->
+  <div id="bloqueo">
+    <h2>Registro de Despachos</h2>
+    <p>RECUPAC — Ingresa el PIN para acceder</p>
+    <input type="password" id="pin-input" inputmode="numeric" maxlength="8" placeholder="••••">
+    <button id="btn-desbloquear" onclick="validarPin()">Acceder</button>
+    <div id="pin-error"></div>
+  </div>
 
   <header>
     <img id="logo" alt="" style="display:none">
@@ -268,7 +338,7 @@
 
 <script>
   // ⚠️ URL /exec de la Web App de Apps Script
-  const API_URL = "https://script.google.com/macros/s/AKfycbycXfkgw15H7BorZDsa7HEFwEse50b1bfwrAVS1aHriQQIirdcatUdvdABiBfm5dH-6sw/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbyxu1lXFdoOqdCc0ihNg8vXFYJbsord661qx2b_gVdZz-HHvKgdmkXGED5MfFJMqNNczA/exec";
 
   // Clave secreta compartida (debe coincidir con la del backend)
   const TOKEN = "1234";
@@ -279,10 +349,7 @@
   let html5Qr          = null;
   let ultimaLeida      = "";
 
-  window.onload = () => {
-    cargarLogo();
-    cargarStock();
-  };
+  // La app arranca solo tras validar el PIN (ver iniciarApp)
 
   // ============================================================
   // LOGO
