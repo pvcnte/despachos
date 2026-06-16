@@ -414,18 +414,50 @@
     ultimaLeida = "";
 
     html5Qr = new Html5Qrcode("reader");
-    html5Qr.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      function(textoLeido) {
-        const serie = textoLeido.trim();
-        if (serie === ultimaLeida) return;
-        ultimaLeida = serie;
-        procesarSerieEscaneada(serie);
-      },
-      function() {}
-    ).catch(function(err) {
-      mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    // Busca la cámara principal trasera (evita gran angular/ultra-wide)
+    Html5Qrcode.getCameras().then(function(camaras) {
+      let camaraId = null;
+
+      if (camaras && camaras.length) {
+        // Filtra las traseras
+        const traseras = camaras.filter(function(c) {
+          const l = c.label.toLowerCase();
+          return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
+                 l.indexOf("trasera") !== -1 || l.indexOf("environment") !== -1;
+        });
+        const lista = traseras.length ? traseras : camaras;
+
+        // Descarta las que parezcan gran angular / ultra-wide
+        const principal = lista.find(function(c) {
+          const l = c.label.toLowerCase();
+          return l.indexOf("wide") === -1 && l.indexOf("ultra") === -1 &&
+                 l.indexOf("angular") === -1 && l.indexOf("0.5") === -1;
+        });
+
+        camaraId = principal ? principal.id : lista[0].id;
+      }
+
+      // Inicia con la cámara elegida, o con facingMode si no se identificó
+      const fuente = camaraId ? camaraId : { facingMode: "environment" };
+
+      html5Qr.start(
+        fuente,
+        config,
+        function(textoLeido) {
+          const serie = textoLeido.trim();
+          if (serie === ultimaLeida) return;
+          ultimaLeida = serie;
+          procesarSerieEscaneada(serie);
+        },
+        function() {}
+      ).catch(function(err) {
+        mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
+        detenerEscaneo();
+      });
+    }).catch(function(err) {
+      mostrarInfoEscaneo("⚠️ No se pudo acceder a las cámaras: " + err, "error");
       detenerEscaneo();
     });
   }
