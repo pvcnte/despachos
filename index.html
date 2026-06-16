@@ -275,7 +275,7 @@
   <div id="bloqueo">
     <h2>Registro de Despachos</h2>
     <p>RECUPAC — Ingresa el PIN para acceder</p>
-    <input type="password" id="pin-input" inputmode="numeric" maxlength="8" placeholder="••••">
+    <input type="password" id="pin-input" inputmode="numeric" maxlength="4" placeholder="••••">
     <button id="btn-desbloquear" onclick="validarPin()">Acceder</button>
     <div id="pin-error"></div>
   </div>
@@ -342,6 +342,9 @@
 
   // Clave secreta compartida (debe coincidir con la del backend)
   const TOKEN = "1234";
+
+  //Pin de acceso
+  const PIN = "4070";
 
   let stockData        = [];
   let todoSeleccionado = false;
