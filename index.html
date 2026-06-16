@@ -121,7 +121,6 @@
       overflow: hidden;
     }
 
-    /* Mensaje superpuesto sobre la cámara al escanear */
     #scan-feedback {
       display: none;
       position: absolute;
@@ -224,7 +223,7 @@
     .ok    { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
     .error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 
-    /* --- Pantalla de bloqueo con PIN --- */
+    /* Pantalla de bloqueo con PIN */
     #bloqueo {
       position: fixed;
       top: 0; left: 0;
@@ -266,13 +265,7 @@
       cursor: pointer;
     }
 
-    #pin-error {
-      color: #ffcdd2;
-      font-size: 0.85rem;
-      margin-top: 12px;
-      height: 18px;
-      text-align: center;
-    }
+    #pin-error { color: #ffcdd2; font-size: 0.85rem; margin-top: 12px; height: 18px; text-align: center; }
   </style>
 </head>
 <body>
@@ -346,14 +339,14 @@
 
 <script>
   // ============================================================
-  // CONFIGURACIÓN — ajusta estos tres valores
+  // CONFIGURACIÓN
   // ============================================================
   const API_URL = "https://script.google.com/macros/s/AKfycbxfAUFyrLQDMETSIhiPwoEL3-1XKa_4R6YRPilbCqR0sSnl-gJn3DID2vxtTNvY0jsq2w/exec";
   const TOKEN   = "1234";   // debe coincidir con el TOKEN del backend
   const PIN     = "4070";   // PIN de acceso a la página
 
   // ============================================================
-  // VARIABLES DE ESTADO
+  // ESTADO
   // ============================================================
   let stockData        = [];
   let todoSeleccionado = false;
@@ -375,17 +368,14 @@
     }
   }
 
-  // Permite validar con la tecla Enter (el script corre al final del body)
   document.getElementById("pin-input").addEventListener("keypress", function(e) {
     if (e.key === "Enter") validarPin();
   });
 
-  // Arranca la app una vez desbloqueada
   function iniciarApp() {
     cargarLogo();
     cargarStock();
-    // Recarga automática del stock cada 10 minutos.
-    // Preserva las series ya seleccionadas en pantalla.
+    // Recarga automática del stock cada 10 minutos (preserva selección)
     setInterval(cargarStock, 600000);
   }
 
@@ -395,18 +385,18 @@
   function cargarLogo() {
     fetch(API_URL + "?action=logo&token=" + encodeURIComponent(TOKEN))
       .then(r => r.json())
-      .then(data => {
+      .then(function(data) {
         if (data.logo) {
           const logo = document.getElementById("logo");
           logo.src = data.logo;
           logo.style.display = "block";
         }
       })
-      .catch(() => {});
+      .catch(function() {});
   }
 
   // ============================================================
-  // ESCANEO EN VIVO con html5-qrcode
+  // ESCANEO EN VIVO (cámara principal, no gran angular)
   // ============================================================
   function iniciarEscaneo() {
     document.getElementById("reader").style.display = "block";
@@ -416,12 +406,10 @@
     html5Qr = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-    // Busca la cámara principal trasera (evita gran angular/ultra-wide)
     Html5Qrcode.getCameras().then(function(camaras) {
       let camaraId = null;
 
       if (camaras && camaras.length) {
-        // Filtra las traseras
         const traseras = camaras.filter(function(c) {
           const l = c.label.toLowerCase();
           return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
@@ -429,7 +417,6 @@
         });
         const lista = traseras.length ? traseras : camaras;
 
-        // Descarta las que parezcan gran angular / ultra-wide
         const principal = lista.find(function(c) {
           const l = c.label.toLowerCase();
           return l.indexOf("wide") === -1 && l.indexOf("ultra") === -1 &&
@@ -439,7 +426,6 @@
         camaraId = principal ? principal.id : lista[0].id;
       }
 
-      // Inicia con la cámara elegida, o con facingMode si no se identificó
       const fuente = camaraId ? camaraId : { facingMode: "environment" };
 
       html5Qr.start(
@@ -473,33 +459,6 @@
     document.getElementById("btn-cerrar-scanner").style.display = "none";
   }
 
-  // Reproduce un beep generado por código (sin archivos externos)
-  function reproducirBeep(exito) {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      // Tono agudo para éxito, grave para error
-      osc.frequency.value = exito ? 880 : 220;
-      osc.type = "sine";
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
-    } catch (e) { /* si el navegador bloquea el audio, se ignora */ }
-  }
-
-  // Muestra un mensaje superpuesto sobre la cámara
-  function mostrarFeedbackCamara(texto, exito) {
-    const fb = document.getElementById("scan-feedback");
-    fb.textContent = texto;
-    fb.style.background = exito ? "rgba(46, 125, 50, 0.92)" : "rgba(198, 40, 40, 0.92)";
-    fb.style.display = "block";
-    setTimeout(function() { fb.style.display = "none"; }, 1200);
-  }
-
   function procesarSerieEscaneada(serie) {
     const idx = stockData.findIndex(item => item.serie === serie);
     if (idx === -1) {
@@ -517,6 +476,32 @@
     mostrarFeedbackCamara("✓ " + serie, true);
     mostrarInfoEscaneo("✅ Serie " + serie + " seleccionada. Puedes escanear la siguiente.", "ok");
     setTimeout(function() { ultimaLeida = ""; }, 1500);
+  }
+
+  // Beep generado por código (sin archivos externos)
+  function reproducirBeep(exito) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = exito ? 880 : 220;
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch (e) {}
+  }
+
+  // Mensaje superpuesto sobre la cámara
+  function mostrarFeedbackCamara(texto, exito) {
+    const fb = document.getElementById("scan-feedback");
+    fb.textContent = texto;
+    fb.style.background = exito ? "rgba(46, 125, 50, 0.92)" : "rgba(198, 40, 40, 0.92)";
+    fb.style.display = "block";
+    setTimeout(function() { fb.style.display = "none"; }, 1200);
   }
 
   function mostrarInfoEscaneo(texto, tipo) {
@@ -545,7 +530,7 @@
   }
 
   function renderStock(data) {
-    // Guarda las series actualmente seleccionadas antes de redibujar
+    // Guarda las series seleccionadas antes de redibujar
     const seleccionPrevia = stockData
       .filter(function(_, i) {
         const cb = document.getElementById("cb" + i);
@@ -572,7 +557,7 @@
              '</div>';
     }).join("");
 
-    // Restaura la selección previa que siga existiendo en el stock
+    // Restaura la selección previa que siga existiendo
     data.forEach(function(item, i) {
       if (seleccionPrevia.indexOf(item.serie) !== -1) {
         document.getElementById("cb" + i).checked = true;
@@ -632,7 +617,7 @@
       const cb = document.getElementById("cb" + i);
       return cb && cb.checked;
     }).map(function(item) {
-      return { serie: item.serie, fila: item.fila };
+      return { serie: item.serie, fila: item.fila, descripcion: item.descripcion };
     });
 
     if (seleccionadas.length === 0) {
