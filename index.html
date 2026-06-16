@@ -113,6 +113,15 @@
       text-align: center;
     }
 
+    #cam-select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #c8e6c9;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+
     #reader {
       display: none;
       width: 100%;
@@ -318,6 +327,7 @@
     </div>
 
     <button class="btn-escanear" onclick="iniciarEscaneo()">📷 Escanear código QR</button>
+    <select id="cam-select" style="display:none;" onchange="cambiarCamara()"></select>
     <div id="reader-wrapper" style="position: relative;">
       <div id="reader"></div>
       <div id="scan-feedback"></div>
@@ -396,56 +406,88 @@
   }
 
   // ============================================================
-  // ESCANEO EN VIVO (cámara principal, no gran angular)
+  // ESCANEO EN VIVO con selector de cámara (recuerda la elección)
   // ============================================================
   function iniciarEscaneo() {
     document.getElementById("reader").style.display = "block";
     document.getElementById("btn-cerrar-scanner").style.display = "block";
     ultimaLeida = "";
 
-    html5Qr = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
     Html5Qrcode.getCameras().then(function(camaras) {
-      let camaraId = null;
-
-      if (camaras && camaras.length) {
-        const traseras = camaras.filter(function(c) {
-          const l = c.label.toLowerCase();
-          return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
-                 l.indexOf("trasera") !== -1 || l.indexOf("environment") !== -1;
-        });
-        const lista = traseras.length ? traseras : camaras;
-
-        const principal = lista.find(function(c) {
-          const l = c.label.toLowerCase();
-          return l.indexOf("wide") === -1 && l.indexOf("ultra") === -1 &&
-                 l.indexOf("angular") === -1 && l.indexOf("0.5") === -1;
-        });
-
-        camaraId = principal ? principal.id : lista[0].id;
+      if (!camaras || !camaras.length) {
+        mostrarInfoEscaneo("⚠️ No se detectaron cámaras.", "error");
+        detenerEscaneo();
+        return;
       }
 
-      const fuente = camaraId ? camaraId : { facingMode: "environment" };
-
-      html5Qr.start(
-        fuente,
-        config,
-        function(textoLeido) {
-          const serie = textoLeido.trim();
-          if (serie === ultimaLeida) return;
-          ultimaLeida = serie;
-          procesarSerieEscaneada(serie);
-        },
-        function() {}
-      ).catch(function(err) {
-        mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
-        detenerEscaneo();
+      // Solo cámaras traseras si se pueden identificar
+      const traseras = camaras.filter(function(c) {
+        const l = (c.label || "").toLowerCase();
+        return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
+               l.indexOf("trasera") !== -1 || l.indexOf("environment") !== -1;
       });
+      const lista = traseras.length ? traseras : camaras;
+
+      // Llena el selector de cámaras
+      const select = document.getElementById("cam-select");
+      select.innerHTML = lista.map(function(c, i) {
+        return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
+      }).join("");
+      select.style.display = lista.length > 1 ? "block" : "none";
+
+      // Recupera la cámara guardada previamente, si sigue disponible
+      const guardada = localStorage.getItem("camaraDespachos");
+      let camaraId = lista[0].id;
+      if (guardada && lista.some(function(c) { return c.id === guardada; })) {
+        camaraId = guardada;
+      }
+      select.value = camaraId;
+
+      arrancarCamara(camaraId);
     }).catch(function(err) {
       mostrarInfoEscaneo("⚠️ No se pudo acceder a las cámaras: " + err, "error");
       detenerEscaneo();
     });
+  }
+
+  // Arranca el escáner con una cámara específica
+  function arrancarCamara(camaraId) {
+    html5Qr = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5Qr.start(
+      camaraId,
+      config,
+      function(textoLeido) {
+        const serie = textoLeido.trim();
+        if (serie === ultimaLeida) return;
+        ultimaLeida = serie;
+        procesarSerieEscaneada(serie);
+      },
+      function() {}
+    ).catch(function(err) {
+      mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
+      detenerEscaneo();
+    });
+  }
+
+  // Cambia de cámara y guarda la elección
+  function cambiarCamara() {
+    const camaraId = document.getElementById("cam-select").value;
+    localStorage.setItem("camaraDespachos", camaraId);
+
+    if (html5Qr) {
+      html5Qr.stop().then(function() {
+        html5Qr.clear();
+        html5Qr = null;
+        arrancarCamara(camaraId);
+      }).catch(function() {
+        html5Qr = null;
+        arrancarCamara(camaraId);
+      });
+    } else {
+      arrancarCamara(camaraId);
+    }
   }
 
   function detenerEscaneo() {
@@ -457,6 +499,7 @@
     }
     document.getElementById("reader").style.display = "none";
     document.getElementById("btn-cerrar-scanner").style.display = "none";
+    document.getElementById("cam-select").style.display = "none";
   }
 
   function procesarSerieEscaneada(serie) {
