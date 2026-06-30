@@ -58,6 +58,39 @@
       margin-bottom: 14px;
     }
 
+    /* --- Card de seleccionadas (siempre visible) --- */
+    .sel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .sel-header .titulo-sel { font-size: 0.9rem; font-weight: bold; color: #2e7d32; }
+    .btn-limpiar {
+      font-size: 0.75rem;
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    #chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      border-radius: 16px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      font-weight: bold;
+    }
+    .chip .x { cursor: pointer; font-weight: bold; color: #c62828; }
+    .chip-vacio { font-size: 0.85rem; color: #999; }
+
     .stock-header {
       display: flex;
       justify-content: space-between;
@@ -74,6 +107,8 @@
       padding: 4px 10px;
       cursor: pointer;
     }
+
+    #buscador { margin-bottom: 12px; }
 
     #filtro-pcr {
       display: flex;
@@ -92,11 +127,7 @@
       cursor: pointer;
     }
 
-    .btn-pcr.activo {
-      background: #2e7d32;
-      color: white;
-      border-color: #2e7d32;
-    }
+    .btn-pcr.activo { background: #2e7d32; color: white; border-color: #2e7d32; }
 
     .btn-escanear {
       display: block;
@@ -122,13 +153,7 @@
       margin-bottom: 12px;
     }
 
-    #reader {
-      display: none;
-      width: 100%;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      overflow: hidden;
-    }
+    #reader { display: none; width: 100%; margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
 
     #scan-feedback {
       display: none;
@@ -160,21 +185,9 @@
       margin-bottom: 12px;
     }
 
-    #serie-escaneada {
-      display: none;
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      margin-bottom: 12px;
-      text-align: center;
-    }
+    #serie-escaneada { display: none; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-bottom: 12px; text-align: center; }
 
-    #contador {
-      font-size: 0.85rem;
-      color: #2e7d32;
-      font-weight: bold;
-      margin-bottom: 12px;
-    }
+    #contador { font-size: 0.85rem; color: #2e7d32; font-weight: bold; margin-bottom: 12px; }
 
     .serie-item {
       display: flex;
@@ -186,17 +199,11 @@
       cursor: pointer;
     }
 
-    .serie-item.escaneada {
-      border-color: #2e7d32;
-      background: #f1f8f1;
-    }
+    .serie-item.escaneada { border-color: #2e7d32; background: #f1f8f1; }
 
     .serie-item input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
-      margin: 0 12px 0 0;
-      accent-color: #2e7d32;
-      flex-shrink: 0;
+      width: 20px; height: 20px; margin: 0 12px 0 0;
+      accent-color: #2e7d32; flex-shrink: 0; pointer-events: none;
     }
 
     .serie-info { flex: 1; }
@@ -217,63 +224,28 @@
       font-weight: bold;
       cursor: pointer;
     }
-
     .btn-enviar:disabled { background: #a5d6a7; cursor: not-allowed; }
 
-    #mensaje {
-      margin-top: 14px;
-      padding: 12px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      text-align: center;
-      display: none;
-    }
-
+    #mensaje { margin-top: 14px; padding: 12px; border-radius: 6px; font-size: 0.9rem; text-align: center; display: none; }
     .ok    { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
     .error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 
     /* Pantalla de bloqueo con PIN */
     #bloqueo {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: #2e7d32;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 24px;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #2e7d32; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 1000; padding: 24px;
     }
-
     #bloqueo h2 { color: white; font-size: 1.3rem; margin-bottom: 8px; text-align: center; }
     #bloqueo p  { color: #e8f5e9; font-size: 0.9rem; margin-bottom: 24px; text-align: center; }
-
     #pin-input {
-      width: 100%;
-      max-width: 280px;
-      padding: 14px;
-      font-size: 1.4rem;
-      text-align: center;
-      letter-spacing: 8px;
-      border: none;
-      border-radius: 8px;
-      margin-bottom: 16px;
+      width: 100%; max-width: 280px; padding: 14px; font-size: 1.4rem;
+      text-align: center; letter-spacing: 8px; border: none; border-radius: 8px; margin-bottom: 16px;
     }
-
     #btn-desbloquear {
-      width: 100%;
-      max-width: 280px;
-      padding: 14px;
-      background: #1b5e20;
-      color: white;
-      border: 2px solid white;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
+      width: 100%; max-width: 280px; padding: 14px; background: #1b5e20;
+      color: white; border: 2px solid white; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer;
     }
-
     #pin-error { color: #ffcdd2; font-size: 0.85rem; margin-top: 12px; height: 18px; text-align: center; }
   </style>
 </head>
@@ -312,11 +284,23 @@
     <input type="text" id="cliente" placeholder="Ingresa el cliente o destino">
   </div>
 
+  <!-- Series seleccionadas (siempre visible) -->
+  <div class="card">
+    <div class="sel-header">
+      <span class="titulo-sel">Series seleccionadas (<span id="num-sel">0</span>)</span>
+      <button class="btn-limpiar" onclick="limpiarSeleccion()">Limpiar todo</button>
+    </div>
+    <div id="chips"><span class="chip-vacio">Aún no hay series seleccionadas.</span></div>
+  </div>
+
+  <!-- Stock -->
   <div class="card">
     <div class="stock-header">
       <label class="campo" style="margin:0">Series en stock</label>
-      <button class="btn-seleccionar" onclick="toggleSeleccion()">Seleccionar todo</button>
+      <button class="btn-seleccionar" onclick="seleccionarVisibles()">Seleccionar visibles</button>
     </div>
+
+    <input type="text" id="buscador" placeholder="🔍 Buscar serie..." oninput="buscar(this.value)">
 
     <div id="filtro-pcr">
       <button class="btn-pcr activo" onclick="filtrar('TODOS')">Todos</button>
@@ -352,17 +336,18 @@
   // CONFIGURACIÓN
   // ============================================================
   const API_URL = "https://script.google.com/macros/s/AKfycbxfAUFyrLQDMETSIhiPwoEL3-1XKa_4R6YRPilbCqR0sSnl-gJn3DID2vxtTNvY0jsq2w/exec";
-  const TOKEN   = "1234";   // debe coincidir con el TOKEN del backend
-  const PIN     = "4070";   // PIN de acceso a la página
+  const TOKEN   = "1234";
+  const PIN     = "4070";
 
   // ============================================================
   // ESTADO
   // ============================================================
-  let stockData        = [];
-  let todoSeleccionado = false;
-  let filtroActivo     = "TODOS";
-  let html5Qr          = null;
-  let ultimaLeida      = "";
+  let todoStock     = [];               // stock completo (todos los PCR)
+  let seleccionadas = {};               // serie -> {serie, fila, descripcion}
+  let filtroActivo  = "TODOS";
+  let textoBusqueda = "";
+  let html5Qr       = null;
+  let ultimaLeida   = "";
 
   // ============================================================
   // BLOQUEO POR PIN
@@ -377,7 +362,6 @@
       document.getElementById("pin-input").value = "";
     }
   }
-
   document.getElementById("pin-input").addEventListener("keypress", function(e) {
     if (e.key === "Enter") validarPin();
   });
@@ -385,8 +369,7 @@
   function iniciarApp() {
     cargarLogo();
     cargarStock();
-    // Recarga automática del stock cada 10 minutos (preserva selección)
-    setInterval(cargarStock, 600000);
+    setInterval(cargarStock, 600000); // refresco cada 10 min
   }
 
   // ============================================================
@@ -406,7 +389,144 @@
   }
 
   // ============================================================
-  // ESCANEO EN VIVO con selector de cámara (recuerda la elección)
+  // STOCK (se carga completo y se filtra/busca en el cliente)
+  // ============================================================
+  function cargarStock() {
+    fetch(API_URL + "?action=stock&pcr=TODOS&token=" + encodeURIComponent(TOKEN))
+      .then(r => r.json())
+      .then(function(data) {
+        todoStock = data || [];
+        // Quita de la selección las series que ya no están en stock (despachadas)
+        const enStock = {};
+        todoStock.forEach(function(it) { enStock[it.serie] = true; });
+        Object.keys(seleccionadas).forEach(function(s) {
+          if (!enStock[s]) delete seleccionadas[s];
+        });
+        render();
+        renderChips();
+        actualizarContador();
+      })
+      .catch(function(err) {
+        document.getElementById("lista-series").innerHTML =
+          '<div class="empty">Error al cargar el stock: ' + err.message + '</div>';
+      });
+  }
+
+  // Lista visible según filtro PCR y búsqueda
+  function visibles() {
+    const t = textoBusqueda.trim().toUpperCase();
+    return todoStock.filter(function(it) {
+      const coincidePCR = filtroActivo === "TODOS" || it.descripcion === filtroActivo;
+      const coincideTxt = t === "" || String(it.serie).toUpperCase().indexOf(t) !== -1;
+      return coincidePCR && coincideTxt;
+    });
+  }
+
+  function render() {
+    const lista = document.getElementById("lista-series");
+    const items = visibles();
+
+    if (!items.length) {
+      lista.innerHTML = '<div class="empty">No hay series que coincidan con el filtro o búsqueda.</div>';
+      return;
+    }
+
+    lista.innerHTML = items.map(function(it) {
+      const sel = seleccionadas[it.serie] ? "escaneada" : "";
+      const chk = seleccionadas[it.serie] ? "checked" : "";
+      return '<div class="serie-item ' + sel + '" id="item_' + it.serie + '" onclick="toggleSerie(\'' + it.serie + '\')">' +
+               '<input type="checkbox" ' + chk + '>' +
+               '<div class="serie-info">' +
+                 '<div class="serie-codigo">' + it.serie + '</div>' +
+                 '<div class="serie-desc">' + (it.descripcion || "Sin descripción") + '</div>' +
+               '</div>' +
+             '</div>';
+    }).join("");
+  }
+
+  // Marca o desmarca una serie (persiste aunque cambie el filtro)
+  function toggleSerie(serie) {
+    if (seleccionadas[serie]) {
+      delete seleccionadas[serie];
+    } else {
+      const it = todoStock.find(function(x) { return x.serie === serie; });
+      if (it) seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+    }
+    // Actualiza solo esa fila visible
+    const item = document.getElementById("item_" + serie);
+    if (item) {
+      const cb = item.querySelector("input[type=checkbox]");
+      if (seleccionadas[serie]) { cb.checked = true; item.classList.add("escaneada"); }
+      else { cb.checked = false; item.classList.remove("escaneada"); }
+    }
+    renderChips();
+    actualizarContador();
+  }
+
+  function filtrar(pcr) {
+    filtroActivo = pcr;
+    document.querySelectorAll(".btn-pcr").forEach(function(btn) {
+      btn.classList.toggle("activo", btn.textContent === pcr || (pcr === "TODOS" && btn.textContent === "Todos"));
+    });
+    render();
+  }
+
+  function buscar(texto) {
+    textoBusqueda = texto || "";
+    render();
+  }
+
+  // Selecciona todas las series visibles actualmente
+  function seleccionarVisibles() {
+    visibles().forEach(function(it) {
+      seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+    });
+    render();
+    renderChips();
+    actualizarContador();
+  }
+
+  function limpiarSeleccion() {
+    seleccionadas = {};
+    render();
+    renderChips();
+    actualizarContador();
+  }
+
+  // Chips de series seleccionadas (siempre visibles)
+  function renderChips() {
+    const cont = document.getElementById("chips");
+    const claves = Object.keys(seleccionadas);
+    if (!claves.length) {
+      cont.innerHTML = '<span class="chip-vacio">Aún no hay series seleccionadas.</span>';
+      return;
+    }
+    cont.innerHTML = claves.map(function(s) {
+      return '<span class="chip">' + s + ' <span class="x" onclick="quitarChip(\'' + s + '\')">✕</span></span>';
+    }).join("");
+  }
+
+  function quitarChip(serie) {
+    delete seleccionadas[serie];
+    const item = document.getElementById("item_" + serie);
+    if (item) {
+      const cb = item.querySelector("input[type=checkbox]");
+      cb.checked = false;
+      item.classList.remove("escaneada");
+    }
+    renderChips();
+    actualizarContador();
+  }
+
+  function actualizarContador() {
+    const n = Object.keys(seleccionadas).length;
+    document.getElementById("contador").textContent = n + " series seleccionadas";
+    document.getElementById("num-sel").textContent = n;
+    document.getElementById("btn-enviar").disabled = n === 0;
+  }
+
+  // ============================================================
+  // ESCANEO EN VIVO con selector de cámara
   // ============================================================
   function iniciarEscaneo() {
     document.getElementById("reader").style.display = "block";
@@ -419,8 +539,6 @@
         detenerEscaneo();
         return;
       }
-
-      // Solo cámaras traseras si se pueden identificar
       const traseras = camaras.filter(function(c) {
         const l = (c.label || "").toLowerCase();
         return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
@@ -428,19 +546,15 @@
       });
       const lista = traseras.length ? traseras : camaras;
 
-      // Llena el selector de cámaras
       const select = document.getElementById("cam-select");
       select.innerHTML = lista.map(function(c, i) {
         return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
       }).join("");
       select.style.display = lista.length > 1 ? "block" : "none";
 
-      // Recupera la cámara guardada previamente, si sigue disponible
       const guardada = localStorage.getItem("camaraDespachos");
       let camaraId = lista[0].id;
-      if (guardada && lista.some(function(c) { return c.id === guardada; })) {
-        camaraId = guardada;
-      }
+      if (guardada && lista.some(function(c) { return c.id === guardada; })) camaraId = guardada;
       select.value = camaraId;
 
       arrancarCamara(camaraId);
@@ -450,14 +564,11 @@
     });
   }
 
-  // Arranca el escáner con una cámara específica
   function arrancarCamara(camaraId) {
     html5Qr = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
     html5Qr.start(
       camaraId,
-      config,
+      { fps: 10, qrbox: { width: 250, height: 250 } },
       function(textoLeido) {
         const serie = textoLeido.trim();
         if (serie === ultimaLeida) return;
@@ -471,20 +582,13 @@
     });
   }
 
-  // Cambia de cámara y guarda la elección
   function cambiarCamara() {
     const camaraId = document.getElementById("cam-select").value;
     localStorage.setItem("camaraDespachos", camaraId);
-
     if (html5Qr) {
       html5Qr.stop().then(function() {
-        html5Qr.clear();
-        html5Qr = null;
-        arrancarCamara(camaraId);
-      }).catch(function() {
-        html5Qr = null;
-        arrancarCamara(camaraId);
-      });
+        html5Qr.clear(); html5Qr = null; arrancarCamara(camaraId);
+      }).catch(function() { html5Qr = null; arrancarCamara(camaraId); });
     } else {
       arrancarCamara(camaraId);
     }
@@ -492,10 +596,8 @@
 
   function detenerEscaneo() {
     if (html5Qr) {
-      html5Qr.stop().then(function() {
-        html5Qr.clear();
-        html5Qr = null;
-      }).catch(function() { html5Qr = null; });
+      html5Qr.stop().then(function() { html5Qr.clear(); html5Qr = null; })
+        .catch(function() { html5Qr = null; });
     }
     document.getElementById("reader").style.display = "none";
     document.getElementById("btn-cerrar-scanner").style.display = "none";
@@ -503,42 +605,38 @@
   }
 
   function procesarSerieEscaneada(serie) {
-    const idx = stockData.findIndex(item => item.serie === serie);
-    if (idx === -1) {
+    const it = todoStock.find(function(x) { return x.serie === serie; });
+    if (!it) {
       reproducirBeep(false);
       mostrarFeedbackCamara("✕ " + serie + " no está en stock", false);
-      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock actual (o filtro PCR distinto).", "error");
+      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock actual.", "error");
       setTimeout(function() { ultimaLeida = ""; }, 1500);
       return;
     }
-    document.getElementById("cb" + idx).checked = true;
-    document.getElementById("item" + idx).classList.add("escaneada");
+    seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+    render();
+    renderChips();
     actualizarContador();
-    document.getElementById("item" + idx).scrollIntoView({ behavior: "smooth", block: "center" });
     reproducirBeep(true);
     mostrarFeedbackCamara("✓ " + serie, true);
     mostrarInfoEscaneo("✅ Serie " + serie + " seleccionada. Puedes escanear la siguiente.", "ok");
     setTimeout(function() { ultimaLeida = ""; }, 1500);
   }
 
-  // Beep generado por código (sin archivos externos)
   function reproducirBeep(exito) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(ctx.destination);
       osc.frequency.value = exito ? 880 : 220;
       osc.type = "sine";
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
+      osc.start(); osc.stop(ctx.currentTime + 0.2);
     } catch (e) {}
   }
 
-  // Mensaje superpuesto sobre la cámara
   function mostrarFeedbackCamara(texto, exito) {
     const fb = document.getElementById("scan-feedback");
     fb.textContent = texto;
@@ -549,98 +647,10 @@
 
   function mostrarInfoEscaneo(texto, tipo) {
     const el = document.getElementById("serie-escaneada");
-    el.textContent   = texto;
+    el.textContent = texto;
     el.style.display = "block";
-    if (tipo === "ok") {
-      el.style.background = "#e8f5e9"; el.style.color = "#2e7d32"; el.style.border = "1px solid #a5d6a7";
-    } else {
-      el.style.background = "#ffebee"; el.style.color = "#c62828"; el.style.border = "1px solid #ef9a9a";
-    }
-  }
-
-  // ============================================================
-  // STOCK
-  // ============================================================
-  function cargarStock() {
-    document.getElementById("lista-series").innerHTML = '<div class="loading">Cargando stock...</div>';
-    fetch(API_URL + "?action=stock&pcr=" + encodeURIComponent(filtroActivo) + "&token=" + encodeURIComponent(TOKEN))
-      .then(r => r.json())
-      .then(renderStock)
-      .catch(function(err) {
-        document.getElementById("lista-series").innerHTML =
-          '<div class="empty">Error al cargar el stock: ' + err.message + '</div>';
-      });
-  }
-
-  function renderStock(data) {
-    // Guarda las series seleccionadas antes de redibujar
-    const seleccionPrevia = stockData
-      .filter(function(_, i) {
-        const cb = document.getElementById("cb" + i);
-        return cb && cb.checked;
-      })
-      .map(function(item) { return item.serie; });
-
-    stockData = data;
-    const lista = document.getElementById("lista-series");
-
-    if (!data || data.length === 0) {
-      lista.innerHTML = '<div class="empty">No hay series en stock para este tipo de PCR.</div>';
-      actualizarContador();
-      return;
-    }
-
-    lista.innerHTML = data.map(function(item, i) {
-      return '<div class="serie-item" id="item' + i + '" onclick="toggleCheck(' + i + ')">' +
-               '<input type="checkbox" id="cb' + i + '" onchange="actualizarContador()">' +
-               '<div class="serie-info">' +
-                 '<div class="serie-codigo">' + item.serie + '</div>' +
-                 '<div class="serie-desc">' + (item.descripcion || "Sin descripción") + '</div>' +
-               '</div>' +
-             '</div>';
-    }).join("");
-
-    // Restaura la selección previa que siga existiendo
-    data.forEach(function(item, i) {
-      if (seleccionPrevia.indexOf(item.serie) !== -1) {
-        document.getElementById("cb" + i).checked = true;
-        document.getElementById("item" + i).classList.add("escaneada");
-      }
-    });
-
-    actualizarContador();
-  }
-
-  function filtrar(pcr) {
-    filtroActivo     = pcr;
-    todoSeleccionado = false;
-    document.querySelectorAll(".btn-pcr").forEach(function(btn) {
-      btn.classList.toggle("activo", btn.textContent === pcr || (pcr === "TODOS" && btn.textContent === "Todos"));
-    });
-    cargarStock();
-  }
-
-  function toggleCheck(i) {
-    const cb = document.getElementById("cb" + i);
-    cb.checked = !cb.checked;
-    actualizarContador();
-  }
-
-  function toggleSeleccion() {
-    todoSeleccionado = !todoSeleccionado;
-    stockData.forEach(function(_, i) {
-      document.getElementById("cb" + i).checked = todoSeleccionado;
-    });
-    actualizarContador();
-  }
-
-  function actualizarContador() {
-    const n = stockData.filter(function(_, i) {
-      const cb = document.getElementById("cb" + i);
-      return cb && cb.checked;
-    }).length;
-    document.getElementById("contador").textContent = n + " series seleccionadas";
-    document.getElementById("btn-enviar").disabled = n === 0;
+    if (tipo === "ok") { el.style.background = "#e8f5e9"; el.style.color = "#2e7d32"; el.style.border = "1px solid #a5d6a7"; }
+    else { el.style.background = "#ffebee"; el.style.color = "#c62828"; el.style.border = "1px solid #ef9a9a"; }
   }
 
   // ============================================================
@@ -656,14 +666,12 @@
       return;
     }
 
-    const seleccionadas = stockData.filter(function(_, i) {
-      const cb = document.getElementById("cb" + i);
-      return cb && cb.checked;
-    }).map(function(item) {
-      return { serie: item.serie, fila: item.fila, descripcion: item.descripcion };
+    const series = Object.keys(seleccionadas).map(function(s) {
+      const x = seleccionadas[s];
+      return { serie: x.serie, fila: x.fila, descripcion: x.descripcion };
     });
 
-    if (seleccionadas.length === 0) {
+    if (!series.length) {
       mostrarMensaje("Selecciona al menos una serie.", "error");
       return;
     }
@@ -673,18 +681,13 @@
 
     fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify({
-        series: seleccionadas,
-        fecha: fecha,
-        responsable: responsable,
-        cliente: cliente,
-        token: TOKEN
-      })
+      body: JSON.stringify({ series: series, fecha: fecha, responsable: responsable, cliente: cliente, token: TOKEN })
     })
       .then(r => r.json())
       .then(function(res) {
         if (res.ok) {
           mostrarMensaje("✅ " + res.cantidad + " series registradas correctamente.", "ok");
+          seleccionadas = {};
         } else {
           mostrarMensaje("Error: " + res.error, "error");
         }
@@ -700,8 +703,8 @@
 
   function mostrarMensaje(texto, tipo) {
     const el = document.getElementById("mensaje");
-    el.textContent   = texto;
-    el.className     = tipo;
+    el.textContent = texto;
+    el.className = tipo;
     el.style.display = "block";
     setTimeout(function() { el.style.display = "none"; }, 5000);
   }
