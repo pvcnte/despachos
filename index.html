@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro de Despachos</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <title>Preparación de Sacas</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -253,7 +253,7 @@
 
   <!-- Pantalla de bloqueo con PIN -->
   <div id="bloqueo">
-    <h2>Registro de Despachos</h2>
+    <h2>Preparación de Sacas</h2>
     <p>RECUPAC — Ingresa el PIN para acceder</p>
     <input type="password" id="pin-input" inputmode="numeric" maxlength="4" placeholder="••••">
     <button id="btn-desbloquear" onclick="validarPin()">Acceder</button>
@@ -263,13 +263,13 @@
   <header>
     <img id="logo" alt="" style="display:none">
     <div class="titulo">
-      <h1>Registro de Despachos</h1>
-      <p>RECUPAC — Selecciona las series a despachar</p>
+      <h1>Preparación de Sacas</h1>
+      <p>RECUPAC — Selecciona las sacas que quedan preparadas</p>
     </div>
   </header>
 
   <div class="card">
-    <label class="campo" for="fecha">Fecha de despacho</label>
+    <label class="campo" for="fecha">Fecha de preparación</label>
     <input type="date" id="fecha">
 
     <label class="campo" for="responsable">Responsable</label>
@@ -279,6 +279,9 @@
       <option>Willians T.</option>
       <option>Evens F.</option>
     </select>
+
+    <label class="campo" for="pedido-id">Pedido a preparar</label>
+    <select id="pedido-id" onchange="seleccionarPedidoPreparacion()" required><option value="">Selecciona un pedido</option></select>
 
     <label class="campo" for="cliente">Cliente / Destino</label>
     <input type="text" id="cliente" placeholder="Ingresa el cliente o destino">
@@ -326,7 +329,7 @@
   </div>
 
   <button class="btn-enviar" id="btn-enviar" onclick="enviar()" disabled>
-    Registrar Despacho
+    Preparar sacas
   </button>
 
   <div id="mensaje"></div>
@@ -336,8 +339,7 @@
   // CONFIGURACIÓN
   // ============================================================
   const API_URL = "https://script.google.com/macros/s/AKfycbzxHQCZrBP7ALkABqBvnH4Kb_38v_nd3f7SmrVfhuy214L8mBA4Mpxoiqf-FMsENvcdvQ/exec";
-  const TOKEN   = "1234";
-  const PIN     = "4070";
+  let TOKEN = "";
 
   // ============================================================
   // ESTADO
@@ -352,15 +354,16 @@
   // ============================================================
   // BLOQUEO POR PIN
   // ============================================================
-  function validarPin() {
-    const valor = String(document.getElementById("pin-input").value).trim();
-    if (valor === String(PIN).trim()) {
-      document.getElementById("bloqueo").style.display = "none";
-      iniciarApp();
-    } else {
-      document.getElementById("pin-error").textContent = "PIN incorrecto. Intenta nuevamente.";
-      document.getElementById("pin-input").value = "";
-    }
+  async function validarPin() {
+    const valor=String(document.getElementById('pin-input').value).trim();
+    const error=document.getElementById('pin-error');
+    const btn=document.getElementById('btn-desbloquear');btn.disabled=true;
+    try {
+      const r=await fetch(API_URL+'?action=stock&pcr=TODOS&token='+encodeURIComponent(valor));
+      const datos=await r.json();if(!r.ok||!Array.isArray(datos))throw new Error('PIN incorrecto o acceso no disponible.');
+      TOKEN=valor;document.getElementById('pin-input').value='';
+      document.getElementById('bloqueo').style.display='none';iniciarApp();
+    } catch(e){error.textContent=e.message;} finally {btn.disabled=false;}
   }
   document.getElementById("pin-input").addEventListener("keypress", function(e) {
     if (e.key === "Enter") validarPin();
@@ -369,7 +372,22 @@
   function iniciarApp() {
     cargarLogo();
     cargarStock();
+    cargarPedidosPreparacion();
     setInterval(cargarStock, 600000); // refresco cada 10 min
+  }
+  let pedidosPreparacion=[];
+  function cargarPedidosPreparacion(){
+    fetch(API_URL+'?action=pedidos&token='+encodeURIComponent(TOKEN)).then(r=>r.json()).then(data=>{
+      if(!Array.isArray(data))throw new Error(data.error||'No se pudieron leer los pedidos');
+      pedidosPreparacion=data;const select=document.getElementById('pedido-id'),anterior=select.value;
+      select.replaceChildren(new Option('Selecciona un pedido',''));
+      data.forEach(p=>select.append(new Option(`${p.cliente} · ${p.producto} ${p.condicion==='COLOR'?'Color':'Estándar'} · ${p.tons} t · ${p.fecha.split('-').reverse().join('/')}`,p.id)));
+      if(data.some(p=>p.id===anterior))select.value=anterior;
+    }).catch(e=>mostrarMensaje(e.message,'error'));
+  }
+  function seleccionarPedidoPreparacion(){
+    const p=pedidosPreparacion.find(p=>p.id===document.getElementById('pedido-id').value);
+    if(!p)return;document.getElementById('cliente').value=p.cliente;
   }
 
   // ============================================================
@@ -395,7 +413,8 @@
     fetch(API_URL + "?action=stock&pcr=TODOS&token=" + encodeURIComponent(TOKEN))
       .then(r => r.json())
       .then(function(data) {
-        todoStock = data || [];
+        if(!Array.isArray(data))throw new Error(data.error||'No se pudo validar el stock');
+        todoStock = data;
         // Quita de la selección las series que ya no están en stock (despachadas)
         const enStock = {};
         todoStock.forEach(function(it) { enStock[it.serie] = true; });
@@ -661,7 +680,7 @@
     const responsable = document.getElementById("responsable").value;
     const cliente     = document.getElementById("cliente").value.trim();
 
-    if (!fecha || !responsable || !cliente) {
+    if (!fecha || !responsable || !cliente || !document.getElementById('pedido-id').value.trim()) {
       mostrarMensaje("Completa todos los campos antes de registrar.", "error");
       return;
     }
@@ -681,23 +700,23 @@
 
     fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify({ series: series, fecha: fecha, responsable: responsable, cliente: cliente, token: TOKEN })
+      body: JSON.stringify({ series: series, fecha: fecha, responsable: responsable, cliente: cliente, pedidoId: document.getElementById("pedido-id").value.trim(), token: TOKEN })
     })
       .then(r => r.json())
       .then(function(res) {
         if (res.ok) {
-          mostrarMensaje("✅ " + res.cantidad + " series registradas correctamente.", "ok");
+          mostrarMensaje(res.mensaje || (res.cantidad + " sacas preparadas. Entrega pendiente."), "ok");
           seleccionadas = {};
         } else {
           mostrarMensaje("Error: " + res.error, "error");
         }
-        document.getElementById("btn-enviar").textContent = "Registrar Despacho";
+        document.getElementById("btn-enviar").textContent = "Preparar sacas";
         cargarStock();
       })
       .catch(function(err) {
         mostrarMensaje("Error al registrar: " + err.message, "error");
         document.getElementById("btn-enviar").disabled = false;
-        document.getElementById("btn-enviar").textContent = "Registrar Despacho";
+        document.getElementById("btn-enviar").textContent = "Preparar sacas";
       });
   }
 
