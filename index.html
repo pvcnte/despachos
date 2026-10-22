@@ -419,9 +419,10 @@
   function cargarPedidosPreparacion(){
     fetch(API_URL+'?action=pedidos&token='+encodeURIComponent(TOKEN)).then(r=>r.json()).then(data=>{
       if(!Array.isArray(data))throw new Error(data.error||'No se pudieron leer los pedidos');
+      data=data.filter(p=>!Number.isFinite(Number(p.preparado))||Number(p.preparado)+1e-8<Number(p.tons));
       pedidosPreparacion=data;const select=document.getElementById('pedido-id'),anterior=select.value;
       select.replaceChildren(new Option('Selecciona un pedido',''));
-      data.forEach(p=>select.append(new Option(`${p.cliente} · ${p.producto} ${p.condicion==='COLOR'?'Color':'Estándar'} · ${p.tons} t · ${p.fecha.split('-').reverse().join('/')}`,p.id)));
+      data.forEach(p=>select.append(new Option(`${p.cliente} · ${p.producto} ${p.condicion==='COLOR'?'Color':'Estándar'} · ${p.tons} t total · ${p.saldoPreparacion==null?p.tons:p.saldoPreparacion} t por preparar · ${p.fecha.split('-').reverse().join('/')}`,p.id)));
       if(data.some(p=>p.id===anterior))select.value=anterior;
     }).catch(e=>mostrarMensaje(e.message,'error'));
   }
@@ -508,6 +509,7 @@
     if (seleccionadas[serie]) {
       delete seleccionadas[serie];
     } else {
+      if(Object.keys(seleccionadas).length>=30){mostrarMensaje("El máximo por registro es 30 sacas.","error");render();return;}
       const it = todoStock.find(function(x) { return x.serie === serie; });
       if (it) seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
     }
@@ -537,7 +539,9 @@
 
   // Selecciona todas las series visibles actualmente
   function seleccionarVisibles() {
-    visibles().forEach(function(it) {
+    const disponibles=visibles().filter(it=>!seleccionadas[it.serie]),cupo=Math.max(0,30-Object.keys(seleccionadas).length);
+    if(disponibles.length>cupo)mostrarMensaje("Se seleccionan como máximo 30 sacas por registro.","error");
+    disponibles.slice(0,cupo).forEach(function(it) {
       seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
     });
     render();
@@ -673,6 +677,7 @@
       setTimeout(function() { ultimaLeida = ""; }, 1500);
       return;
     }
+    if(!seleccionadas[serie]&&Object.keys(seleccionadas).length>=30){mostrarInfoEscaneo("Máximo 30 sacas por registro.","error");reproducirBeep(false);return;}
     seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
     render();
     renderChips();
@@ -731,8 +736,8 @@
       return { serie: x.serie, fila: x.fila, descripcion: x.descripcion };
     });
 
-    if (!series.length) {
-      mostrarMensaje("Selecciona al menos una serie.", "error");
+    if (!series.length || series.length>30) {
+      mostrarMensaje("Selecciona de 1 a 30 sacas.", "error");
       return;
     }
 
@@ -748,6 +753,7 @@
         if (res.ok) {
           mostrarMensaje(res.mensaje || (res.cantidad + " sacas preparadas. Entrega pendiente."), "ok");
           seleccionadas = {};
+          cargarPedidosPreparacion();
         } else {
           mostrarMensaje("Error: " + res.error, "error");
         }
