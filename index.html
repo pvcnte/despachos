@@ -677,7 +677,7 @@
       setTimeout(function() { ultimaLeida = ""; }, 1500);
       return;
     }
-    if(!seleccionadas[serie]&&Object.keys(seleccionadas).length>=30){mostrarInfoEscaneo("Máximo 30 sacas por registro.","error");reproducirBeep(false);return;}
+    if(!seleccionadas[serie]&&Object.keys(seleccionadas).length>=30){mostrarInfoEscaneo("Máximo 30 sacas por registro.","error");reproducirBeep(false);setTimeout(function(){ultimaLeida="";},1500);return;}
     seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
     render();
     renderChips();
