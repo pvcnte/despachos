@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preparación de Sacas</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';document.head.appendChild(s)"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -356,6 +356,7 @@
       <div id="reader"></div>
       <div id="scan-feedback"></div>
     </div>
+    <button id="btn-linterna" onclick="alternarLinterna()" style="display:none;width:100%;padding:10px;margin-bottom:8px;border-radius:8px;border:1px solid #a5d6a7;background:#e8f5e9;color:#1b5e20;font-weight:600">🔦 Encender linterna</button>
     <button id="btn-cerrar-scanner" onclick="detenerEscaneo()">✕ Cerrar cámara</button>
     <div id="serie-escaneada"></div>
 
@@ -400,7 +401,9 @@
     const btn=document.getElementById('btn-desbloquear');btn.disabled=true;
     try {
       const r=await fetch(API_URL+'?action=stock&pcr=TODOS&token='+encodeURIComponent(valor));
-      const datos=await r.json();if(!r.ok||!Array.isArray(datos))throw new Error('PIN incorrecto o acceso no disponible.');
+      const datos=await r.json();
+      // Solo un rechazo de acceso es PIN incorrecto. Otros errores del servidor se muestran tal cual.
+      if(!r.ok||!Array.isArray(datos))throw new Error(datos&&datos.error&&datos.error!=='Acceso no autorizado'?'El sistema respondió: '+datos.error:'PIN incorrecto.');
       TOKEN=valor;document.getElementById('pin-input').value='';
       document.getElementById('bloqueo').style.display='none';iniciarApp();
     } catch(e){error.textContent=e.message;} finally {btn.disabled=false;}
@@ -590,103 +593,196 @@
   }
 
   // ============================================================
-  // ESCANEO EN VIVO con selector de cámara
+  // ESCANEO EN VIVO
+  // Cámara trasera por facingMode (no depende de etiquetas), visor proporcional,
+  // lector nativo cuando existe, linterna, reintento con stock fresco y ruta manual.
   // ============================================================
+  let torchActiva = false;
+  const RE_SERIE = /(\d{6}[A-Z]\d{1,2})/;
+
+  // Extrae la serie desde cualquier contenido del QR (texto, URL, JSON, espacios, minúsculas).
+  function extraerSerie(texto) {
+    const limpio = String(texto || "").toUpperCase().replace(/[\s​-‍﻿]/g, "");
+    const m = limpio.match(RE_SERIE);
+    return m ? m[1] : limpio;
+  }
+
+  function lectorDisponible() {
+    return typeof Html5Qrcode !== "undefined";
+  }
+
   function iniciarEscaneo() {
+    if (!lectorDisponible()) {
+      mostrarInfoEscaneo("⚠️ El lector de cámara no cargó (revisa la señal). Escribe la serie en el buscador y presiona Enter.", "error");
+      document.getElementById("buscador").focus();
+      return;
+    }
+    if (html5Qr) return;
     document.getElementById("reader").style.display = "block";
     document.getElementById("btn-cerrar-scanner").style.display = "block";
     ultimaLeida = "";
-
-    Html5Qrcode.getCameras().then(function(camaras) {
-      if (!camaras || !camaras.length) {
-        mostrarInfoEscaneo("⚠️ No se detectaron cámaras.", "error");
-        detenerEscaneo();
-        return;
-      }
-      const traseras = camaras.filter(function(c) {
-        const l = (c.label || "").toLowerCase();
-        return l.indexOf("back") !== -1 || l.indexOf("rear") !== -1 ||
-               l.indexOf("trasera") !== -1 || l.indexOf("environment") !== -1;
-      });
-      const lista = traseras.length ? traseras : camaras;
-
-      const select = document.getElementById("cam-select");
-      select.innerHTML = lista.map(function(c, i) {
-        return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
-      }).join("");
-      select.style.display = lista.length > 1 ? "block" : "none";
-
-      const guardada = localStorage.getItem("camaraDespachos");
-      let camaraId = lista[0].id;
-      if (guardada && lista.some(function(c) { return c.id === guardada; })) camaraId = guardada;
-      select.value = camaraId;
-
-      arrancarCamara(camaraId);
-    }).catch(function(err) {
-      mostrarInfoEscaneo("⚠️ No se pudo acceder a las cámaras: " + err, "error");
-      detenerEscaneo();
-    });
+    cargarStock();
+    arrancarCamara({ facingMode: "environment" }, true);
   }
 
-  function arrancarCamara(camaraId) {
-    html5Qr = new Html5Qrcode("reader");
+  function arrancarCamara(camara, primerIntento) {
+    html5Qr = new Html5Qrcode("reader", {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      useBarCodeDetectorIfSupported: true,
+      verbose: false
+    });
+    const config = {
+      fps: 15,
+      qrbox: function(w, h) { const l = Math.floor(Math.min(w, h) * 0.8); return { width: l, height: l }; },
+      videoConstraints: { width: { ideal: 1280 }, height: { ideal: 720 }, focusMode: "continuous" }
+    };
     html5Qr.start(
-      camaraId,
-      { fps: 10, qrbox: { width: 250, height: 250 } },
+      camara.deviceId ? camara.deviceId : { facingMode: "environment" },
+      config,
       function(textoLeido) {
-        const serie = textoLeido.trim();
+        const serie = extraerSerie(textoLeido);
         if (serie === ultimaLeida) return;
         ultimaLeida = serie;
         procesarSerieEscaneada(serie);
       },
       function() {}
-    ).catch(function(err) {
-      mostrarInfoEscaneo("⚠️ No se pudo iniciar la cámara: " + err, "error");
-      detenerEscaneo();
+    ).then(function() {
+      prepararLinterna();
+      cargarListaCamaras();
+    }).catch(function(err) {
+      html5Qr = null;
+      if (primerIntento && !camara.deviceId) {
+        // Algunos celulares rechazan facingMode: probar con la última cámara listada.
+        Html5Qrcode.getCameras().then(function(camaras) {
+          if (!camaras || !camaras.length) throw err;
+          arrancarCamara({ deviceId: camaras[camaras.length - 1].id }, false);
+        }).catch(function() { falloCamara(err); });
+      } else {
+        falloCamara(err);
+      }
     });
+  }
+
+  function falloCamara(err) {
+    const msg = String((err && err.message) || err);
+    const permiso = /permission|denied|NotAllowed/i.test(msg);
+    mostrarInfoEscaneo(permiso
+      ? "⚠️ La cámara está bloqueada. Permite el acceso a la cámara en el navegador y vuelve a abrir el escáner."
+      : "⚠️ No se pudo iniciar la cámara (" + msg + "). Cierra otras apps que la usen o escribe la serie en el buscador.", "error");
+    detenerEscaneo();
+  }
+
+  function cargarListaCamaras() {
+    Html5Qrcode.getCameras().then(function(camaras) {
+      if (!camaras || camaras.length < 2) return;
+      const select = document.getElementById("cam-select");
+      select.innerHTML = camaras.map(function(c, i) {
+        return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
+      }).join("");
+      const guardada = localStorage.getItem("camaraDespachos");
+      if (guardada && camaras.some(function(c) { return c.id === guardada; })) select.value = guardada;
+      select.style.display = "block";
+    }).catch(function() {});
   }
 
   function cambiarCamara() {
     const camaraId = document.getElementById("cam-select").value;
     localStorage.setItem("camaraDespachos", camaraId);
-    if (html5Qr) {
-      html5Qr.stop().then(function() {
-        html5Qr.clear(); html5Qr = null; arrancarCamara(camaraId);
-      }).catch(function() { html5Qr = null; arrancarCamara(camaraId); });
-    } else {
-      arrancarCamara(camaraId);
-    }
+    const reiniciar = function() { html5Qr = null; arrancarCamara({ deviceId: camaraId }, false); };
+    if (html5Qr) html5Qr.stop().then(function() { html5Qr.clear(); reiniciar(); }).catch(reiniciar);
+    else reiniciar();
+  }
+
+  function prepararLinterna() {
+    const btn = document.getElementById("btn-linterna");
+    torchActiva = false;
+    btn.textContent = "🔦 Encender linterna";
+    try {
+      const torch = html5Qr.getRunningTrackCameraCapabilities().torchFeature();
+      btn.style.display = torch.isSupported() ? "block" : "none";
+    } catch (e) { btn.style.display = "none"; }
+  }
+
+  function alternarLinterna() {
+    try {
+      const torch = html5Qr.getRunningTrackCameraCapabilities().torchFeature();
+      torch.apply(!torchActiva).then(function() {
+        torchActiva = !torchActiva;
+        document.getElementById("btn-linterna").textContent = torchActiva ? "🔦 Apagar linterna" : "🔦 Encender linterna";
+      });
+    } catch (e) {}
   }
 
   function detenerEscaneo() {
-    if (html5Qr) {
-      html5Qr.stop().then(function() { html5Qr.clear(); html5Qr = null; })
-        .catch(function() { html5Qr = null; });
-    }
-    document.getElementById("reader").style.display = "none";
+    const cerrar = function() {
+      html5Qr = null;
+      document.getElementById("reader").style.display = "none";
+    };
+    if (html5Qr) html5Qr.stop().then(function() { html5Qr.clear(); cerrar(); }).catch(cerrar);
+    else cerrar();
     document.getElementById("btn-cerrar-scanner").style.display = "none";
+    document.getElementById("btn-linterna").style.display = "none";
     document.getElementById("cam-select").style.display = "none";
   }
 
-  function procesarSerieEscaneada(serie) {
-    const it = todoStock.find(function(x) { return x.serie === serie; });
-    if (!it) {
+  function agregarSerie(it) {
+    if (!seleccionadas[it.serie] && Object.keys(seleccionadas).length >= 30) {
+      mostrarInfoEscaneo("Máximo 30 sacas por registro.", "error");
       reproducirBeep(false);
-      mostrarFeedbackCamara("✕ " + serie + " no está en stock", false);
-      mostrarInfoEscaneo("⚠️ Serie " + serie + " no está en el stock actual.", "error");
       setTimeout(function() { ultimaLeida = ""; }, 1500);
       return;
     }
-    if(!seleccionadas[serie]&&Object.keys(seleccionadas).length>=30){mostrarInfoEscaneo("Máximo 30 sacas por registro.","error");reproducirBeep(false);setTimeout(function(){ultimaLeida="";},1500);return;}
-    seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+    seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
     render();
     renderChips();
     actualizarContador();
     reproducirBeep(true);
-    mostrarFeedbackCamara("✓ " + serie, true);
-    mostrarInfoEscaneo("✅ Serie " + serie + " seleccionada. Puedes escanear la siguiente.", "ok");
+    mostrarFeedbackCamara("✓ " + it.serie, true);
+    mostrarInfoEscaneo("✅ Serie " + it.serie + " seleccionada. Puedes escanear la siguiente.", "ok");
     setTimeout(function() { ultimaLeida = ""; }, 1500);
   }
+
+  function buscarEnStock(serie) {
+    return todoStock.find(function(x) { return String(x.serie).trim().toUpperCase() === serie; });
+  }
+
+  function procesarSerieEscaneada(serie) {
+    const it = buscarEnStock(serie);
+    if (it) return agregarSerie(it);
+    if (!RE_SERIE.test(serie)) {
+      reproducirBeep(false);
+      mostrarFeedbackCamara("✕ No es una etiqueta de saca", false);
+      mostrarInfoEscaneo("⚠️ El código leído (" + serie.slice(0, 40) + ") no tiene formato de serie de saca. Apunta al QR de la etiqueta.", "error");
+      setTimeout(function() { ultimaLeida = ""; }, 1500);
+      return;
+    }
+    // Puede ser una saca recién producida: refrescar el stock y reintentar antes de rechazar.
+    mostrarInfoEscaneo("Buscando " + serie + " en el stock actualizado…", "ok");
+    fetch(API_URL + "?action=stock&pcr=TODOS&token=" + encodeURIComponent(TOKEN))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!Array.isArray(data)) throw new Error("stock");
+        todoStock = data;
+        render();
+        const nuevo = buscarEnStock(serie);
+        if (nuevo) return agregarSerie(nuevo);
+        reproducirBeep(false);
+        mostrarFeedbackCamara("✕ " + serie + " no disponible", false);
+        mostrarInfoEscaneo("⚠️ " + serie + " no está disponible para preparar. Puede estar ya reservada para otro pedido, ya despachada o sin muestreo. No la ingreses de nuevo.", "error");
+        setTimeout(function() { ultimaLeida = ""; }, 2500);
+      })
+      .catch(function() {
+        reproducirBeep(false);
+        mostrarInfoEscaneo("⚠️ No se pudo verificar " + serie + " por falta de señal. Reintenta o escríbela en el buscador.", "error");
+        setTimeout(function() { ultimaLeida = ""; }, 2500);
+      });
+  }
+
+  document.getElementById("buscador").addEventListener("keydown", function(e) {
+    if (e.key !== "Enter") return;
+    const it = buscarEnStock(extraerSerie(this.value));
+    if (it) { agregarSerie(it); this.value = ""; buscar(""); }
+  });
 
   function reproducirBeep(exito) {
     try {
