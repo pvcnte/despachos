@@ -277,6 +277,28 @@
     @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes toastIn{from{opacity:0;bottom:90px}to{opacity:1;bottom:100px}}
     @media(max-width:760px){body{padding:22px 16px 125px}header{gap:12px;padding-bottom:22px}header img{max-width:90px;height:30px;padding:6px}.app-badge{display:none}header h1{font-size:1.28rem;letter-spacing:-.5px}header p{font-size:.62rem}.eyebrow{font-size:.5rem;letter-spacing:1.5px;margin-bottom:7px}.intro{padding:20px;border-radius:17px;gap:15px;margin-bottom:18px}.intro strong{font-size:.85rem}.intro p{font-size:.68rem}.intro-icon{height:43px;width:43px;border-radius:12px}.workspace{display:flex;flex-direction:column;gap:16px}.card{width:100%;padding:20px;border-radius:17px}.pedido-card{order:1}.stock-card{order:2}.selection-card{order:3}.card-title{margin-bottom:19px}#lista-series{max-height:370px}.action-bar{padding:13px 16px;gap:12px}.action-summary strong{font-size:.73rem}.action-summary span{font-size:.56rem}.btn-enviar{max-width:190px;font-size:.72rem;padding:12px 18px;min-height:48px}.login-foot{bottom:40px}.stock-header .btn-seleccionar{font-size:.56rem}#bloqueo h2{font-size:1.7rem}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+    /* Condición por saca y control de saldo del pedido (solo modo vinculado). */
+    .serie-cond{display:inline-block;margin-left:7px;padding:1px 7px;border-radius:6px;font-size:.58rem;font-weight:600;line-height:1.6;vertical-align:middle}
+    .serie-cond.color{background:#fff1dd;color:#8a4b00;border:1px solid #efc48c}
+    .serie-cond.std{background:#eef2f7;color:#33475b;border:1px solid #c9d5e2}
+    .serie-kg{font-size:.6rem;color:var(--muted);margin-left:6px}
+    .serie-item.no-calza{background:#fff6f2;border-color:#e6b3a2}
+    .serie-item.no-calza .serie-codigo{color:#8a3b22}
+    .serie-aviso{font-size:.6rem;color:#8a3b22;margin-top:4px;font-weight:600}
+    #aviso-pedido{display:none;margin:0 0 4px;padding:10px 12px;border-radius:10px;font-size:.68rem;line-height:1.7}
+    #aviso-pedido.error{background:#fff1ed;color:#9f402d;border:1px solid #edc9bc}
+    #aviso-pedido.ok{background:#edf7e8;color:var(--green);border:1px solid #bad5aa}
+    #vincular-detalle{font-size:.66rem;line-height:1.75;color:var(--ink);background:#f8faf7;border:1px solid var(--line);border-radius:10px;padding:12px;margin:-8px 0 16px}
+    #vincular-detalle .serie-linea{color:var(--muted)}
+    #vincular-estado{display:none;font-size:.6rem;color:var(--muted);margin:-6px 0 10px}
+    #btn-vincular{background:#006845;color:#fff;border:0;border-radius:10px;min-height:44px;width:100%;font-size:.75rem;font-weight:600;cursor:pointer}
+    #btn-vincular:disabled{opacity:.45;cursor:not-allowed}
+    #btn-preps{background:#f1f6ed;border:1px solid #dbe8d2;border-radius:9px;min-height:34px;color:var(--green);padding:8px 12px;font-size:.62rem;cursor:pointer;margin-bottom:14px}
+    /* Modo de preparación: con pedido del planificador o libre por cliente. */
+    .modo-tabs{display:flex;gap:8px;margin:0 0 14px}
+    .modo-tab{flex:1;padding:9px 10px;border-radius:9px;border:1px solid #d6dee6;background:#f7f9fb;color:#33475b;font-size:.68rem;font-weight:600;cursor:pointer;font-family:inherit}
+    .modo-tab.activo{background:var(--green);color:#fff;border-color:var(--green)}
+    #clientes-estado{display:none;margin:-4px 0 10px;font-size:.6rem;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -316,11 +338,20 @@
       <option>Evens F.</option>
     </select>
 
-    <label class="campo" for="pedido-id">Pedido a preparar</label>
+    <label class="campo">Tipo de preparación</label>
+    <div class="modo-tabs" role="tablist" aria-label="Tipo de preparación">
+      <button type="button" class="modo-tab activo" id="modo-pedido" role="tab" aria-selected="true" onclick="cambiarModo('pedido')">Con pedido</button>
+      <button type="button" class="modo-tab" id="modo-cliente" role="tab" aria-selected="false" onclick="cambiarModo('cliente')">Por cliente (sin pedido)</button>
+    </div>
+
+    <label class="campo" for="pedido-id" id="label-pedido">Pedido a preparar</label>
     <select id="pedido-id" onchange="seleccionarPedidoPreparacion()" required><option value="">Selecciona un pedido</option></select>
+    <div id="aviso-pedido" role="status" aria-live="polite"></div>
 
     <label class="campo" for="cliente">Cliente / Destino</label>
-    <input type="text" id="cliente" placeholder="Ingresa el cliente o destino">
+    <input type="text" id="cliente" list="clientes-maestro" autocomplete="off" placeholder="Elige del maestro o escribe el cliente">
+    <datalist id="clientes-maestro"></datalist>
+    <div id="clientes-estado" role="status" aria-live="polite"></div>
   </div>
 
   <!-- Series seleccionadas (siempre visible) -->
@@ -366,6 +397,19 @@
     </div>
   </div>
 
+  <!-- Vinculación posterior: preparaciones por cliente ya registradas, sin pedido -->
+  <div class="card" id="card-vincular" style="grid-column:2">
+    <h2 class="card-title"><span class="step">04</span> Vincular preparación por cliente</h2>
+    <p style="font-size:.66rem;line-height:1.7;color:var(--muted);margin:-8px 0 16px">Toma una preparación por cliente ya registrada y la asocia al pedido del planificador. No crea otra preparación, no cambia la cantidad solicitada ni la fecha de despacho.</p>
+    <button type="button" id="btn-preps" onclick="cargarPreparacionesCliente()">Actualizar preparaciones</button>
+    <div id="vincular-estado" role="status" aria-live="polite"></div>
+    <label class="campo" for="vincular-prep">Preparación por cliente</label>
+    <select id="vincular-prep" onchange="renderVinculacion()"><option value="">Selecciona una preparación</option></select>
+    <div id="vincular-detalle"></div>
+    <label class="campo" for="vincular-pedido">Pedido del planificador del mismo cliente</label>
+    <select id="vincular-pedido" onchange="renderVinculacion()"><option value="">Selecciona un pedido</option></select>
+    <button type="button" id="btn-vincular" onclick="vincularPreparacion()" disabled>Vincular al pedido</button>
+  </div>
   </main>
   <div class="action-bar"><div class="action-summary"><strong id="resumen-sacas">Sin sacas seleccionadas</strong><span>Confirmar registra una preparación.</span></div>
   <button class="btn-enviar" id="btn-enviar" onclick="enviar()" disabled>
@@ -391,6 +435,201 @@
   let textoBusqueda = "";
   let html5Qr       = null;
   let ultimaLeida   = "";
+  // Modo de preparación: 'pedido' usa el planificador; 'cliente' reserva libre
+  // del maestro histórico sin exigir pedido.
+  let modoPreparacion = "pedido";
+  let clientesMaestro = [];
+
+  // ============================================================
+  // CONDICIÓN POR SACA Y SALDO DEL PEDIDO
+  // El QR entrega condición, kg y MFI por saca; antes se descartaban y la
+  // selección no mostraba Color/Estándar ni cuánto excedía el saldo.
+  // ============================================================
+  function condicionSaca(it) {
+    return it.condicion === "COLOR" || /COLOR$/.test(String(it.descripcion || "")) ? "COLOR" : "STD";
+  }
+  function etiquetaCondicion(it) { return condicionSaca(it) === "COLOR" ? "Color" : "Estándar"; }
+  function pcrSaca(it) { return String(it.descripcion || "").replace(/COLOR$/, "").toUpperCase(); }
+  function esModoCliente() { return modoPreparacion === "cliente"; }
+  function cambiarModo(m) {
+    modoPreparacion = m === "cliente" ? "cliente" : "pedido";
+    const p = document.getElementById("modo-pedido"), c = document.getElementById("modo-cliente");
+    if (p) { p.classList.toggle("activo", !esModoCliente()); if (p.setAttribute) p.setAttribute("aria-selected", String(!esModoCliente())); }
+    if (c) { c.classList.toggle("activo", esModoCliente()); if (c.setAttribute) c.setAttribute("aria-selected", String(esModoCliente())); }
+    const sel = document.getElementById("pedido-id"), lab = document.getElementById("label-pedido");
+    if (sel) sel.style.display = esModoCliente() ? "none" : "";
+    if (lab) lab.style.display = esModoCliente() ? "none" : "";
+    const aviso = document.getElementById("aviso-pedido");
+    if (aviso && esModoCliente()) { aviso.textContent = ""; aviso.style.display = "none"; }
+    if (esModoCliente()) cargarClientes();
+    render();
+    actualizarContador();
+  }
+  // Maestro de clientes del histórico MRP (deduplicado en el servidor). Solo lectura.
+  function cargarClientes() {
+    if (clientesMaestro.length) return;
+    const estado = document.getElementById("clientes-estado");
+    fetch(API_URL + "?action=clientes&token=" + encodeURIComponent(TOKEN))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!Array.isArray(data)) throw new Error(data && data.error ? data.error : "No se pudo leer el maestro de clientes");
+        clientesMaestro = data;
+        const dl = document.getElementById("clientes-maestro");
+        if (dl) dl.innerHTML = data.map(function (c) { return '<option value="' + String(c.nombre).replace(/"/g, "&quot;") + '"></option>'; }).join("");
+        if (estado) {
+          estado.textContent = data.length ? data.length + " clientes del maestro histórico MRP." : "Maestro vacío: escribe el nombre del cliente.";
+          estado.style.display = "block";
+        }
+      })
+      .catch(function (e) {
+        // El maestro es una ayuda: si falla, el operador puede escribir el cliente.
+        if (estado) { estado.textContent = "No se pudo cargar el maestro (" + e.message + "). Escribe el nombre del cliente."; estado.style.display = "block"; }
+      });
+  }
+  // Preparaciones por cliente ya registradas y pendientes de pedido. Solo se
+  // leen hasta que Jorge confirma la vinculación; no se crea otra preparación.
+  let preparacionesCliente = [];
+  let vinculando = false;
+  function normalizarCliente(texto) {
+    return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
+      .replace(/\s+/g, " ").trim().replace(/\s+-\s+(OC\s*\d{3,}|\d{6,})$/, "").trim();
+  }
+  function preparacionSeleccionada() {
+    const sel = document.getElementById("vincular-prep");
+    return preparacionesCliente.find(function (p) { return p.id === (sel && sel.value); }) || null;
+  }
+  function cargarPreparacionesCliente() {
+    const estado = document.getElementById("vincular-estado");
+    if (estado) { estado.textContent = "Leyendo preparaciones por cliente…"; estado.style.display = "block"; }
+    fetch(API_URL + "?action=preparaciones&estado=preparada&token=" + encodeURIComponent(TOKEN))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!Array.isArray(data)) throw new Error((data && data.error) || "No se pudieron leer las preparaciones por cliente");
+        const sel = document.getElementById("vincular-prep"), actual = sel ? sel.value : "";
+        preparacionesCliente = data;
+        if (sel) {
+          sel.innerHTML = '<option value="">Selecciona una preparación</option>' + data.map(function (p) {
+            const etiqueta = String(p.nombre || "") + " · " + String(p.fecha_preparacion || "sin fecha") + " · "
+              + Number(p.tons || 0).toFixed(2) + " t · " + Number(p.sacas || 0) + " sacas";
+            return '<option value="' + String(p.id).replace(/"/g, "&quot;") + '">' + etiqueta.replace(/"/g, "&quot;") + "</option>";
+          }).join("");
+          if (actual && data.some(function (p) { return p.id === actual; })) sel.value = actual;
+        }
+        if (estado) estado.textContent = data.length
+          ? data.length + " preparación(es) por cliente sin pedido."
+          : "Sin preparaciones por cliente pendientes de vincular.";
+        renderVinculacion();
+      })
+      .catch(function (e) {
+        if (estado) { estado.textContent = "No se pudieron leer las preparaciones: " + e.message; estado.style.display = "block"; }
+      });
+  }
+  // Detalle real de la preparación elegida y solo los pedidos del mismo cliente:
+  // son los únicos que el servidor acepta al vincular.
+  function renderVinculacion() {
+    const prep = preparacionSeleccionada();
+    const detalle = document.getElementById("vincular-detalle");
+    const selPedido = document.getElementById("vincular-pedido");
+    const boton = document.getElementById("btn-vincular");
+    if (detalle) {
+      if (!prep) detalle.innerHTML = "";
+      else {
+        const lineas = (prep.series || []).map(function (s) {
+          if (s && typeof s === "object") {
+            const kg = s.kg != null ? Number(s.kg).toLocaleString("es-CL") + " kg" : "kg sin dato";
+            const cond = s.condicion ? (String(s.condicion).toUpperCase() === "COLOR" ? "Color" : "Estándar") : "condición sin dato";
+            return '<div class="serie-linea">' + String(s.serie) + " · " + kg + " · " + cond + "</div>";
+          }
+          return '<div class="serie-linea">' + String(s) + " · kg sin dato · condición sin dato</div>";
+        }).join("");
+        detalle.innerHTML = "<strong>" + String(prep.nombre || "") + "</strong> · preparada el "
+          + String(prep.fecha_preparacion || "fecha sin registro") + " · " + Number(prep.sacas || 0) + " sacas · "
+          + Number(prep.tons || 0).toFixed(2) + " t reales<br>Fecha de despacho: pendiente, se registra al despachar.<br>" + lineas;
+      }
+    }
+    if (selPedido) {
+      const elegido = selPedido.value;
+      const compatibles = prep ? pedidosPreparacion.filter(function (p) {
+        return normalizarCliente(p.cliente) === normalizarCliente(prep.nombre);
+      }) : [];
+      selPedido.innerHTML = '<option value="">Selecciona un pedido</option>' + compatibles.map(function (p) {
+        const etiqueta = String(p.cliente || "") + " · " + String(p.fecha || "") + " · " + String(p.producto || "")
+          + " " + String(p.condicion || "") + " · " + Number(p.tons || 0).toFixed(2) + " t";
+        return '<option value="' + String(p.id).replace(/"/g, "&quot;") + '">' + etiqueta.replace(/"/g, "&quot;") + "</option>";
+      }).join("");
+      if (elegido && compatibles.some(function (p) { return p.id === elegido; })) selPedido.value = elegido;
+      if (prep && !compatibles.length) {
+        selPedido.innerHTML = '<option value="">Sin pedidos del cliente ' + String(prep.nombre || "").replace(/</g, "") + "</option>";
+      }
+    }
+    if (boton) boton.disabled = vinculando || !(prep && document.getElementById("vincular-pedido").value);
+  }
+  // Un solo POST por confirmación: el botón queda bloqueado mientras responde.
+  function vincularPreparacion() {
+    if (vinculando) return;
+    const prep = preparacionSeleccionada();
+    const pedidoId = String(document.getElementById("vincular-pedido").value || "");
+    const responsable = String(document.getElementById("responsable").value || "").trim();
+    if (!prep || !pedidoId) { mostrarMensaje("Elige la preparación por cliente y el pedido al que se vincula.", "error"); return; }
+    if (!responsable) { mostrarMensaje("Selecciona el responsable antes de vincular.", "error"); return; }
+    vinculando = true;
+    const boton = document.getElementById("btn-vincular");
+    if (boton) { boton.disabled = true; boton.textContent = "Vinculando…"; }
+    const payload = { modo: "vincular_cliente", prepId: prep.id, pedidoId: pedidoId, responsable: responsable, token: TOKEN };
+    fetch(API_URL, { method: "POST", body: JSON.stringify(payload) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok) {
+          mostrarMensaje(res.mensaje || ("Preparación vinculada: " + Number(res.tons || 0).toFixed(2) + " t reales. Fecha de despacho pendiente."), "ok");
+        } else {
+          mostrarMensaje("No se vinculó: " + ((res && res.error) || "respuesta sin detalle del servidor."), "error");
+        }
+      })
+      .catch(function (e) {
+        mostrarMensaje("No se vinculó: " + e.message + ". Revisa la conexión y reintenta.", "error");
+      })
+      .then(function () {
+        vinculando = false;
+        if (boton) boton.textContent = "Vincular al pedido";
+        cargarPreparacionesCliente();
+        if (!esModoCliente()) cargarPedidosPreparacion();
+      });
+  }
+  function pedidoSeleccionado() {
+    if (esModoCliente()) return null;
+    const sel = document.getElementById("pedido-id");
+    return pedidosPreparacion.find(function (p) { return p.id === (sel && sel.value); }) || null;
+  }
+  // Misma regla que el backend: misma condición y mismo PCR o el sustituto del
+  // planificador con MFI dentro del rango.
+  function sacaCompatiblePedido(it, p) {
+    if (!p) return true;
+    if (condicionSaca(it) !== String(p.condicion || "STD").toUpperCase()) return false;
+    const pcr = pcrSaca(it), objetivo = String(p.producto || "").toUpperCase();
+    if (pcr === objetivo) return true;
+    const sub = String(p.sustituto || "").trim().toUpperCase();
+    if (!sub || (sub !== "ANY" && sub !== pcr)) return false;
+    const mfi = Number(it.mfi), min = p.mfiMin, max = p.mfiMax;
+    if (min != null && min !== "" && !(mfi >= Number(min))) return false;
+    if (max != null && max !== "" && !(mfi <= Number(max))) return false;
+    return true;
+  }
+  function evaluarSeleccion(p, seleccion) {
+    const items = Object.values(seleccion || {});
+    const pesos = items.map(function (x) { return Math.max(0, (Number(x.kg) || 0) / 1000); });
+    const total = pesos.reduce(function (s, x) { return s + x; }, 0);
+    const incompatibles = p ? items.filter(function (x) { return !sacaCompatiblePedido(x, p); }).map(function (x) { return x.serie; }) : [];
+    const tons = p ? Number(p.tons) || 0 : 0;
+    const preparado = p ? Number(p.preparado) || 0 : 0;
+    const saldo = p ? Math.max(0, Number(p.saldoPreparacion != null ? p.saldoPreparacion : tons - preparado)) : 0;
+    const exceso = p ? total - saldo : 0;
+    const orden = pesos.slice().sort(function (a, b) { return b - a; });
+    let resto = total, sobran = 0;
+    while (p && resto - saldo > 1e-8 && sobran < orden.length) { resto -= orden[sobran]; sobran++; }
+    return { total: total, tons: tons, preparado: preparado, saldo: saldo, exceso: exceso,
+      sobran: p ? sobran : 0, incompatibles: incompatibles,
+      excede: p ? exceso > 1e-8 : false, modoExceso: p ? String(p.modoExceso || "aviso") : "aviso" };
+  }
 
   // ============================================================
   // BLOQUEO POR PIN
@@ -427,11 +666,16 @@
       select.replaceChildren(new Option('Selecciona un pedido',''));
       data.forEach(p=>select.append(new Option(`${p.cliente} · ${p.producto} ${p.condicion==='COLOR'?'Color':'Estándar'} · ${p.tons} t total · ${p.saldoPreparacion==null?p.tons:p.saldoPreparacion} t por preparar · ${p.fecha.split('-').reverse().join('/')}`,p.id)));
       if(data.some(p=>p.id===anterior))select.value=anterior;
+      render();
+      actualizarContador();
     }).catch(e=>mostrarMensaje(e.message,'error'));
   }
   function seleccionarPedidoPreparacion(){
     const p=pedidosPreparacion.find(p=>p.id===document.getElementById('pedido-id').value);
-    if(!p)return;document.getElementById('cliente').value=p.cliente;
+    if(!p){render();actualizarContador();return;}
+    document.getElementById('cliente').value=p.cliente;
+    render();          // marca en la lista las sacas que no calzan con el pedido
+    actualizarContador();
   }
 
   // ============================================================
@@ -488,6 +732,7 @@
   function render() {
     const lista = document.getElementById("lista-series");
     const items = visibles();
+    const p = pedidoSeleccionado();
 
     if (!items.length) {
       lista.innerHTML = '<div class="empty">No hay series que coincidan con el filtro o búsqueda.</div>';
@@ -497,11 +742,17 @@
     lista.innerHTML = items.map(function(it) {
       const sel = seleccionadas[it.serie] ? "escaneada" : "";
       const chk = seleccionadas[it.serie] ? "checked" : "";
-      return '<div class="serie-item ' + sel + '" id="item_' + it.serie + '" onclick="toggleSerie(\'' + it.serie + '\')">' +
+      const cond = condicionSaca(it);
+      const noCalza = p && !sacaCompatiblePedido(it, p);
+      return '<div class="serie-item ' + sel + (noCalza ? " no-calza" : "") + '" id="item_' + it.serie + '" onclick="toggleSerie(\'' + it.serie + '\')">' +
                '<input type="checkbox" ' + chk + '>' +
                '<div class="serie-info">' +
-                 '<div class="serie-codigo">' + it.serie + '</div>' +
+                 '<div class="serie-codigo">' + it.serie +
+                   '<span class="serie-cond ' + cond.toLowerCase() + '">' + etiquetaCondicion(it) + '</span>' +
+                   (Number(it.kg) ? '<span class="serie-kg">' + Number(it.kg).toFixed(0) + ' kg</span>' : '') +
+                 '</div>' +
                  '<div class="serie-desc">' + (it.descripcion || "Sin descripción") + '</div>' +
+                 (noCalza ? '<div class="serie-aviso">No calza con el pedido ' + (p.producto || "") + ' ' + (p.condicion === "COLOR" ? "Color" : "Estándar") + '</div>' : '') +
                '</div>' +
              '</div>';
     }).join("");
@@ -514,7 +765,7 @@
     } else {
       if(Object.keys(seleccionadas).length>=30){mostrarMensaje("El máximo por registro es 30 sacas.","error");render();return;}
       const it = todoStock.find(function(x) { return x.serie === serie; });
-      if (it) seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+      if (it) seleccionadas[serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion, condicion: condicionSaca(it), kg: it.kg, mfi: it.mfi };
     }
     // Actualiza solo esa fila visible
     const item = document.getElementById("item_" + serie);
@@ -540,12 +791,17 @@
     render();
   }
 
-  // Selecciona todas las series visibles actualmente
+  // Selecciona todas las series visibles actualmente. Con pedido elegido solo
+  // agrega las que calzan; las demás siguen visibles y marcadas como discrepancia.
   function seleccionarVisibles() {
-    const disponibles=visibles().filter(it=>!seleccionadas[it.serie]),cupo=Math.max(0,30-Object.keys(seleccionadas).length);
+    const p=pedidoSeleccionado(),base=visibles().filter(it=>!seleccionadas[it.serie]);
+    const disponibles=base.filter(it=>!p||sacaCompatiblePedido(it,p));
+    const omitidas=base.length-disponibles.length;
+    const cupo=Math.max(0,30-Object.keys(seleccionadas).length);
     if(disponibles.length>cupo)mostrarMensaje("Se seleccionan como máximo 30 sacas por registro.","error");
+    if(omitidas)mostrarMensaje("Se omitieron "+omitidas+" sacas que no calzan con el pedido; siguen en la lista para revisarlas.","error");
     disponibles.slice(0,cupo).forEach(function(it) {
-      seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+      seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion, condicion: condicionSaca(it), kg: it.kg, mfi: it.mfi };
     });
     render();
     renderChips();
@@ -589,7 +845,40 @@
     document.getElementById("contador").textContent = todoStock.length + " sacas disponibles · " + n + " seleccionadas";
     document.getElementById("resumen-sacas").textContent = n ? n + (n === 1 ? " saca seleccionada" : " sacas seleccionadas") : "Sin sacas seleccionadas";
     document.getElementById("num-sel").textContent = n;
-    document.getElementById("btn-enviar").disabled = n === 0;
+    const p = pedidoSeleccionado(), ev = evaluarSeleccion(p, seleccionadas);
+    // Sin pedido no hay saldo que comparar. Con pedido, las sacas de otra
+    // condición siempre bloquean porque el backend las rechaza; el exceso de
+    // saldo bloquea solo si el backend está en modo 'bloqueo'.
+    document.getElementById("btn-enviar").disabled = n === 0 ||
+      ev.incompatibles.length > 0 || (ev.excede && ev.modoExceso === "bloqueo");
+    actualizarAvisoPedido(p, ev);
+  }
+
+  function actualizarAvisoPedido(p, ev) {
+    const el = document.getElementById("aviso-pedido");
+    if (!el) return;
+    if (esModoCliente()) {
+      const cli = String(document.getElementById("cliente").value || "").trim();
+      el.textContent = "Sin pedido del planificador: " + Object.keys(seleccionadas).length + " saca(s), " +
+        ev.total.toFixed(2) + " t para " + (cli || "el cliente") + ". Se reserva el stock y la fecha de despacho queda pendiente.";
+      el.className = "ok";
+      el.style.display = "block";
+      return;
+    }
+    if (!p) { el.style.display = "none"; el.textContent = ""; return; }
+    const partes = [];
+    if (ev.incompatibles.length) {
+      partes.push("Hay " + ev.incompatibles.length + " saca(s) que no calzan con este pedido (" + ev.incompatibles.join(", ") + "). Quítalas para poder registrar.");
+    }
+    if (ev.excede) {
+      partes.push("La selección suma " + ev.total.toFixed(2) + " t y el saldo por preparar es " + ev.saldo.toFixed(2) + " t: sobran " + ev.sobran + " saca(s)." + (ev.modoExceso === "bloqueo" ? " Quítalas para registrar." : " Revisa el lote antes de confirmar."));
+    }
+    if (!partes.length) {
+      partes.push("Saldo por preparar: " + ev.saldo.toFixed(2) + " t. Llevas " + ev.total.toFixed(2) + " t en " + Object.keys(seleccionadas).length + " saca(s).");
+    }
+    el.textContent = partes.join(" ");
+    el.className = ev.incompatibles.length || ev.excede ? "error" : "ok";
+    el.style.display = "block";
   }
 
   // ============================================================
@@ -732,7 +1021,7 @@
       setTimeout(function() { ultimaLeida = ""; }, 1500);
       return;
     }
-    seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion };
+    seleccionadas[it.serie] = { serie: it.serie, fila: it.fila, descripcion: it.descripcion, condicion: condicionSaca(it), kg: it.kg, mfi: it.mfi };
     render();
     renderChips();
     actualizarContador();
@@ -821,9 +1110,12 @@
     const fecha       = document.getElementById("fecha").value;
     const responsable = document.getElementById("responsable").value;
     const cliente     = document.getElementById("cliente").value.trim();
+    const modoCliente = esModoCliente();
 
-    if (!fecha || !responsable || !cliente || !document.getElementById('pedido-id').value.trim()) {
-      mostrarMensaje("Completa todos los campos antes de registrar.", "error");
+    if (!fecha || !responsable || !cliente || (!modoCliente && !document.getElementById('pedido-id').value.trim())) {
+      mostrarMensaje(modoCliente
+        ? "Completa fecha, responsable y cliente antes de registrar."
+        : "Completa todos los campos antes de registrar.", "error");
       return;
     }
 
@@ -837,27 +1129,40 @@
       return;
     }
 
+    const pedido = modoCliente ? null : pedidoSeleccionado(), control = evaluarSeleccion(pedido, seleccionadas);
+    if (!modoCliente && control.incompatibles.length) {
+      mostrarMensaje("No se registra: hay sacas que no corresponden al pedido (" + control.incompatibles.join(", ") + ").", "error");
+      return;
+    }
+    if (!modoCliente && control.excede && control.modoExceso === "bloqueo") {
+      mostrarMensaje("No se registra: la selección excede el saldo en " + Math.max(0, control.exceso).toFixed(2) + " t. Quita " + control.sobran + " saca(s).", "error");
+      return;
+    }
+
     document.getElementById("btn-enviar").disabled = true;
     document.getElementById("btn-enviar").textContent = "Registrando...";
 
-    fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ series: series, fecha: fecha, responsable: responsable, cliente: cliente, pedidoId: document.getElementById("pedido-id").value.trim(), token: TOKEN })
-    })
+    const payload = modoCliente
+      ? { modo: "cliente", series: series, fecha: fecha, responsable: responsable, cliente: cliente, token: TOKEN }
+      : { series: series, fecha: fecha, responsable: responsable, cliente: cliente, pedidoId: document.getElementById("pedido-id").value.trim(), token: TOKEN };
+
+    fetch(API_URL, { method: "POST", body: JSON.stringify(payload) })
       .then(r => r.json())
       .then(function(res) {
-        if (res.ok) {
+        if (res && res.ok) {
           mostrarMensaje(res.mensaje || (res.cantidad + " sacas preparadas. Entrega pendiente."), "ok");
           seleccionadas = {};
-          cargarPedidosPreparacion();
+          // Delega el refresco de la lista para no perder la confirmación si falla.
+          if (!modoCliente) cargarPedidosPreparacion();
         } else {
-          mostrarMensaje("Error: " + res.error, "error");
+          // Error del servidor: se conserva la selección para corregir y reintentar.
+          mostrarMensaje("No se registró: " + ((res && res.error) || "respuesta sin detalle del servidor."), "error");
         }
         document.getElementById("btn-enviar").textContent = "Preparar sacas";
         cargarStock();
       })
       .catch(function(err) {
-        mostrarMensaje("Error al registrar: " + err.message, "error");
+        mostrarMensaje("No se registró: " + err.message + ". Revisa la conexión y reintenta.", "error");
         document.getElementById("btn-enviar").disabled = false;
         document.getElementById("btn-enviar").textContent = "Preparar sacas";
       });
