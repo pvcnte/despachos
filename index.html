@@ -396,6 +396,7 @@
 
   </div>
   <div id="mensaje" role="status" aria-live="polite"></div>
+  <div id="aviso-excepciones" role="alert" style="display:none;"></div>
 
 <script>
   // ============================================================
@@ -951,6 +952,62 @@ function clienteSeleccionado() {
   }
 
   // ============================================================
+  // EXCEPCIONES DEL BACKEND
+  // El servidor ya no bloquea: registra igual y devuelve excepciones.
+  // Una excepción es un aviso para conciliar, nunca un error de envío.
+  // ============================================================
+  const MOTIVOS_EXCEPCION = {
+    no_en_stock:            "no figura en el sistema",
+    sin_peso:               "no tiene peso registrado",
+    contaminada:            "está marcada como contaminada",
+    ya_reservada_otra_prep: "ya estaba reservada en otra preparación",
+    ya_despachada:          "figura ya despachada",
+    sin_muestreo:           "no tiene muestreo",
+  };
+
+  function motivoExcepcionPlanta(ex) {
+    const motivo = String((ex && ex.motivo) || "");
+    if (MOTIVOS_EXCEPCION[motivo]) return MOTIVOS_EXCEPCION[motivo];
+    const detalle = String((ex && ex.detalle) || "");
+    return detalle || motivo || "quedó con observación";
+  }
+
+  function excepcionesValidas(res) {
+    if (!res || !Array.isArray(res.excepciones)) return [];
+    return res.excepciones.filter(function(ex) { return ex && ex.serie; });
+  }
+
+  function textoExcepciones(excepciones) {
+    return excepciones.map(function(ex) {
+      return ex.serie + ": " + motivoExcepcionPlanta(ex) + ", se registró igual";
+    }).join(" · ");
+  }
+
+  function mostrarAvisoExcepciones(excepciones) {
+    const el = document.getElementById("aviso-excepciones");
+    if (!el) return;
+    el.textContent = "Estas sacas quedan registradas para el cliente pero SIN reserva en el sistema, para conciliación posterior: " +
+      excepciones.map(function(ex) { return ex.serie; }).join(", ");
+    el.style.display = "block";
+    el.style.margin = "8px";
+    el.style.padding = "10px";
+    el.style.borderRadius = "8px";
+    el.style.background = "#fff8e1";
+    el.style.border = "1px solid #ffb300";
+    el.style.color = "#6d4c00";
+    el.style.fontWeight = "600";
+    el.style.fontSize = "13px";
+    el.style.lineHeight = "1.35";
+  }
+
+  function ocultarAvisoExcepciones() {
+    const el = document.getElementById("aviso-excepciones");
+    if (!el) return;
+    el.textContent = "";
+    el.style.display = "none";
+  }
+
+  // ============================================================
   // ENVÍO
   // ============================================================
   function enviar() {
@@ -989,8 +1046,25 @@ fetch(API_URL, { method: "POST", body: JSON.stringify(payload) })
       .then(r => r.json())
       .then(function(res) {
         if (res && res.ok) {
-          mostrarMensaje(cliente + ": " + (res.mensaje || (res.cantidad + " sacas preparadas. Entrega pendiente.")), "ok");
-          seleccionadas = {};
+          const excepciones = excepcionesValidas(res);
+          const confirmacion = cliente + ": " + (res.mensaje || (res.cantidad + " sacas preparadas. Entrega pendiente."));
+          if (excepciones.length) {
+            // Con excepciones el registro es EXITOSO: se informa el detalle y
+            // las sacas afectadas siguen a la vista para conciliar.
+            mostrarMensaje(confirmacion + " Con excepciones → " + textoExcepciones(excepciones), "ok");
+            mostrarAvisoExcepciones(excepciones);
+            const conExcepcion = {};
+            excepciones.forEach(function(ex) { conExcepcion[String(ex.serie)] = true; });
+            const conservadas = {};
+            Object.keys(seleccionadas).forEach(function(s) {
+              if (conExcepcion[s]) conservadas[s] = seleccionadas[s];
+            });
+            seleccionadas = conservadas;
+          } else {
+            mostrarMensaje(confirmacion, "ok");
+            ocultarAvisoExcepciones();
+            seleccionadas = {};
+          }
           // Delega el refresco de la lista para no perder la confirmación si falla.
         } else {
           // Error del servidor: se conserva la selección para corregir y reintentar.
