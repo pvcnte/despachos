@@ -60,7 +60,7 @@ function conPedido(extra) {
   const { ctx, dom } = cargar();
   set(ctx, 'todoStock', SACAS.slice());
   set(ctx, 'pedidosPreparacion', [Object.assign({}, PEDIDO, extra || {})]);
-  dom.crear('pedido-id').value = 'c_1';
+  // Sin pedido del planificador: el cliente se elige del maestro.
   return { ctx, dom };
 }
 
@@ -74,14 +74,14 @@ test('lista: muestra la condición y el peso de cada saca', () => {
   assert.match(html, /1000 kg/);
 });
 
-test('lista: la saca que no calza se marca pero no se oculta', () => {
+test('lista: sin pedido del planificador ninguna saca se marca como no calza', () => {
   const { ctx, dom } = conPedido();
   ctx.render();
   const html = dom.crear('lista-series').innerHTML;
   assert.match(html, /261105A1/);
   assert.match(html, /261105A3/, 'la saca Color sigue visible');
-  assert.match(html, /no-calza[\s\S]*261105A3/);
-  assert.match(html, /No calza con el pedido PCR30 Estándar/);
+  assert.ok(html.indexOf('no-calza') === -1, 'no se compara contra pedido');
+  assert.ok(html.indexOf('No calza con el pedido') === -1, 'no hay aviso de pedido');
 });
 
 test('evaluarSeleccion: saldo, exceso y sacas sobrantes', () => {
@@ -102,21 +102,21 @@ test('compatibilidad: misma condición y producto, o sustituto dentro del rango 
   assert.strictEqual(ctx.sacaCompatiblePedido(SACAS[1], PEDIDO), false, 'Color no calza con pedido STD');
 });
 
-test('botón: bloquea con sacas incompatibles y con exceso en modo bloqueo', () => {
-  let { ctx, dom } = conPedido({ tons: 1, saldoPreparacion: 1 });
+test('botón: exige sacas y un cliente válido del maestro, no un pedido', () => {
+  const { ctx, dom } = conPedido();
+  set(ctx, 'clientesMaestro', [{ id: 'cli_1', nombre: 'RPCI' }]);
   set(ctx, 'seleccionadas', { '261105A3': SACAS[1] });
+  dom.crear('cliente').value = 'RPCI';
   ctx.actualizarContador();
-  assert.strictEqual(dom.crear('btn-enviar').disabled, true, 'Color contra pedido STD bloquea');
-  assert.match(dom.crear('aviso-pedido').textContent, /no calzan con este pedido/);
+  assert.strictEqual(dom.crear('btn-enviar').disabled, false, 'una saca Color no bloquea sin pedido');
+  assert.match(dom.crear('aviso-pedido').textContent, /Sin pedido del planificador/, 'el aviso explica el modo');
 
-  ({ ctx, dom } = conPedido({ tons: 1, saldoPreparacion: 1, modoExceso: 'aviso' }));
-  set(ctx, 'seleccionadas', { '261105A1': SACAS[0], '261105A3': Object.assign({}, SACAS[1], { condicion: 'STD', descripcion: 'PCR30' }) });
+  dom.crear('cliente').value = '';
   ctx.actualizarContador();
-  assert.strictEqual(dom.crear('btn-enviar').disabled, false, 'modo aviso no bloquea');
-  assert.match(dom.crear('aviso-pedido').textContent, /sobran 1 saca/, 'pero muestra el exceso');
+  assert.strictEqual(dom.crear('btn-enviar').disabled, true, 'sin cliente elegido bloquea');
 
-  ({ ctx, dom } = conPedido({ tons: 1, saldoPreparacion: 1, modoExceso: 'bloqueo' }));
-  set(ctx, 'seleccionadas', { '261105A1': SACAS[0], '261105A3': Object.assign({}, SACAS[1], { condicion: 'STD', descripcion: 'PCR30' }) });
+  dom.crear('cliente').value = 'RPCI';
+  set(ctx, 'seleccionadas', {});
   ctx.actualizarContador();
-  assert.strictEqual(dom.crear('btn-enviar').disabled, true, 'modo bloqueo rechaza el exceso');
+  assert.strictEqual(dom.crear('btn-enviar').disabled, true, 'sin sacas bloquea');
 });

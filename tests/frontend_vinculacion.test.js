@@ -1,6 +1,7 @@
 'use strict';
-// Vincular una preparación por cliente ya registrada a un pedido del planificador
-// desde la pantalla de preparación: selector, detalle real y un solo POST.
+// El QR público ya no vincula preparaciones a pedidos del planificador: estas
+// pruebas fijan la AUSENCIA de esa UI, de sus GET y de su POST, y conservan la
+// cobertura de doble clic y de error en el registro de la preparación por cliente.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -11,24 +12,29 @@ const FUENTE = path.join(__dirname, '..', 'index.html');
 
 function cargar(respuestas) {
   const mapa = {};
-  const crear = function (id) {
-    return mapa[id] || (mapa[id] = {
+  function crear(id) {
+    if (mapa[id]) return mapa[id];
+    const el = {
       id: id, value: '', textContent: '', innerHTML: '', className: '', style: {}, disabled: false,
-      classList: { activo: false, toggle: function (c, v) { if (c === 'activo') this.activo = v === undefined ? !this.activo : !!v; } },
-      setAttribute: function (k, v) { this[k] = v; },
+      src: '', children: [],
+      classList: { add: function () { }, remove: function () { }, toggle: function () { } },
+      setAttribute: function () { }, getAttribute: function () { return null; },
       querySelector: function () { return { checked: false }; },
-      addEventListener: function () { }, append: function () { }, replaceChildren: function () { }, focus: function () { },
-    });
-  };
+      addEventListener: function () { }, focus: function () { },
+      append: function (c) { this.children.push(c); },
+      replaceChildren: function () { this.children = Array.prototype.slice.call(arguments); },
+    };
+    mapa[id] = el;
+    return el;
+  }
   const llamadas = [];
   const fetch = function (url, opts) {
     llamadas.push({ url: url, opts: opts || null });
     const cuerpo = opts && opts.body ? JSON.parse(opts.body) : null;
-    const handler = respuestas(url, cuerpo);
-    return Promise.resolve({ json: function () { return Promise.resolve(handler); } });
+    return Promise.resolve({ json: function () { return Promise.resolve(respuestas(url, cuerpo)); } });
   };
   const sandbox = {
-    console,
+    console: console,
     document: {
       getElementById: crear,
       querySelectorAll: function () { return []; },
@@ -36,116 +42,132 @@ function cargar(respuestas) {
       createElement: function () { return crear('nuevo_' + Math.random()); },
     },
     window: {}, setInterval: function () { return 0; }, setTimeout: function () { return 0; },
-    fetch: fetch, Option: function (t, v) { this.text = t; this.value = v; }, navigator: {}, Html5Qrcode: undefined,
+    fetch: fetch, Option: function (t, v) { this.text = t; this.value = v; },
+    navigator: {}, Html5Qrcode: undefined,
   };
   vm.createContext(sandbox);
   const html = fs.readFileSync(FUENTE, 'utf8');
   const bloques = html.match(/<script>([\s\S]*?)<\/script>/g) || [];
   const codigo = bloques[bloques.length - 1].replace(/^<script>/, '').replace(/<\/script>$/, '');
   vm.runInContext(codigo, sandbox, { filename: 'index.html' });
-  return { ctx: sandbox, dom: crear, llamadas: llamadas };
+  return { ctx: sandbox, dom: crear, llamadas: llamadas, html: html };
 }
 function set(ctx, nombre, valor) { ctx.__v = valor; vm.runInContext(nombre + ' = __v;', ctx); }
 const esperar = () => new Promise(function (r) { setTimeout(r, 0); });
 
-const PREPS = [{
-  id: 'pc_1', cliente_id: 'cli_rpci', nombre: 'RPCI', fecha_preparacion: '2026-11-05', fecha_despacho: null,
-  pedido_id: null, estado: 'preparada', tons: 1.98, sacas: 2,
-  series: [{ serie: '261105A1', kg: 1000, condicion: 'STD' }, { serie: '261105A3', kg: 980, condicion: 'COLOR' }],
-}];
-const PEDIDOS = [
-  { id: 'c_rpci', cliente: 'RPCI - OC 8692', fecha: '2026-11-07', producto: 'PCR30', condicion: 'STD', tons: 4, preparado: 0, saldoPreparacion: 4 },
-  { id: 'c_otro', cliente: 'MALUPLAST', fecha: '2026-11-07', producto: 'PCR30', condicion: 'STD', tons: 3, preparado: 0, saldoPreparacion: 3 },
-];
+const SACAS = [{ serie: '261105A1', descripcion: 'PCR30', fila: 2, kg: 1000, condicion: 'STD', mfi: 2.1 }];
+const CLIENTES = [{ id: 'cli_1', nombre: 'RPCI' }];
 function base(url) {
-  if (url.indexOf('action=preparaciones') !== -1) return PREPS;
-  if (url.indexOf('action=pedidos') !== -1) return PEDIDOS;
-  if (url.indexOf('action=clientes') !== -1) return [{ id: 'cli_rpci', nombre: 'RPCI' }];
-  if (url.indexOf('action=stock') !== -1) return [];
+  if (url.indexOf('action=clientes') !== -1) return CLIENTES;
   if (url.indexOf('action=logo') !== -1) return { logo: '' };
-  return { ok: true, tons: 1.98, estado: 'vinculada', mensaje: 'Preparación vinculada al pedido: 2 sacas (1.98 t reales).' };
+  if (url.indexOf('action=stock') !== -1) return SACAS.slice();
+  return { ok: true, mensaje: 'Preparación registrada (1.00 t). Fecha de despacho pendiente.', cantidad: 1 };
 }
-async function conPreparacion(respuestas) {
+async function listo(respuestas) {
   const entorno = cargar(respuestas || base);
   set(entorno.ctx, 'TOKEN', '1234');
-  set(entorno.ctx, 'pedidosPreparacion', PEDIDOS.slice());
-  entorno.ctx.cargarPreparacionesCliente();
+  entorno.ctx.cargarClientes();
   await esperar();
+  entorno.dom('fecha').value = '2026-11-09';
+  entorno.dom('responsable').value = 'Willians T.';
+  entorno.dom('cliente').value = 'RPCI';
+  set(entorno.ctx, 'seleccionadas', { '261105A1': SACAS[0] });
   return entorno;
 }
 
-test('vinculación: lista la preparación y solo los pedidos del mismo cliente, con serie, kg y condición', async () => {
-  const { ctx, dom } = await conPreparacion();
-  assert.match(dom('vincular-prep').innerHTML, /RPCI/);
-  assert.strictEqual(dom('btn-vincular').disabled, true, 'sin preparación elegida no se puede vincular');
-  dom('vincular-prep').value = 'pc_1';
-  ctx.renderVinculacion();
-  assert.match(dom('vincular-pedido').innerHTML, /c_rpci/);
-  assert.doesNotMatch(dom('vincular-pedido').innerHTML, /c_otro/, 'no ofrece pedidos de otro cliente');
-  const detalle = dom('vincular-detalle').innerHTML;
-  assert.match(detalle, /261105A1/);
-  assert.match(detalle, /1\.000 kg/);
-  assert.match(detalle, /Color/);
-  assert.match(detalle, /Estándar/);
-  assert.match(detalle, /Fecha de despacho: pendiente/);
-  assert.strictEqual(dom('btn-vincular').disabled, true, 'sin pedido elegido no se puede vincular');
+test('no existe UI de vinculación ni selector de pedido en el documento', () => {
+  const { html } = cargar(base);
+  ['id="pedido-id"', 'id="vincular-prep"', 'id="vincular-pedido"', 'id="btn-vincular"', 'id="card-vincular"']
+    .forEach(function (marca) { assert.strictEqual(html.indexOf(marca), -1, 'no debe quedar ' + marca); });
 });
 
-test('vinculación: un solo POST con prepId y pedidoId, y muestra el resultado', async () => {
-  const { ctx, dom, llamadas } = await conPreparacion();
-  dom('vincular-prep').value = 'pc_1';
-  ctx.renderVinculacion();
-  dom('vincular-pedido').value = 'c_rpci';
-  dom('responsable').value = 'Willians T.';
-  ctx.vincularPreparacion();
+test('no se consultan pedidos ni preparaciones del planificador', async () => {
+  const { llamadas, ctx } = await listo();
+  ctx.cargarStock();
   await esperar();
-  const posts = llamadas.filter((l) => l.opts && l.opts.method === 'POST');
-  assert.strictEqual(posts.length, 1);
-  const cuerpo = JSON.parse(posts[0].opts.body);
-  assert.strictEqual(cuerpo.modo, 'vincular_cliente');
-  assert.strictEqual(cuerpo.prepId, 'pc_1');
-  assert.strictEqual(cuerpo.pedidoId, 'c_rpci');
-  assert.strictEqual(cuerpo.fecha_despacho, undefined, 'no inventa fecha de despacho');
-  assert.match(dom('mensaje').textContent, /vinculada/i);
-  assert.strictEqual(dom('mensaje').className, 'ok');
-});
-
-test('vinculación: doble clic no envía dos veces', async () => {
-  const { ctx, dom, llamadas } = await conPreparacion();
-  dom('vincular-prep').value = 'pc_1';
-  ctx.renderVinculacion();
-  dom('vincular-pedido').value = 'c_rpci';
-  dom('responsable').value = 'Willians T.';
-  ctx.vincularPreparacion();
-  ctx.vincularPreparacion();
-  await esperar();
-  assert.strictEqual(llamadas.filter((l) => l.opts && l.opts.method === 'POST').length, 1);
-});
-
-test('vinculación: el error del servidor se muestra y no borra la selección', async () => {
-  const { ctx, dom } = await conPreparacion(function (url) {
-    if (url.indexOf('action=') !== -1) return base(url);
-    return { ok: false, error: 'Sacas que no corresponden al pedido PCR20 STD: 261105A1' };
+  const prohibidas = llamadas.filter(function (l) {
+    return l.url.indexOf('action=pedidos') !== -1 || l.url.indexOf('action=preparaciones') !== -1;
   });
-  dom('vincular-prep').value = 'pc_1';
-  ctx.renderVinculacion();
-  dom('vincular-pedido').value = 'c_rpci';
-  dom('responsable').value = 'Willians T.';
-  ctx.vincularPreparacion();
-  await esperar();
-  assert.match(dom('mensaje').textContent, /No se vinculó: Sacas que no corresponden/);
-  assert.strictEqual(dom('mensaje').className, 'error');
-  assert.strictEqual(dom('vincular-prep').value, 'pc_1', 'conserva la preparación elegida');
+  assert.deepStrictEqual(prohibidas, [], 'solo stock, logo y clientes');
+  assert.ok(llamadas.some(function (l) { return l.url.indexOf('action=clientes') !== -1; }), 'sí consulta clientes');
 });
 
-test('vinculación: sin responsable no envía nada', async () => {
-  const { ctx, dom, llamadas } = await conPreparacion();
-  dom('vincular-prep').value = 'pc_1';
-  ctx.renderVinculacion();
-  dom('vincular-pedido').value = 'c_rpci';
-  dom('responsable').value = '';
-  ctx.vincularPreparacion();
+test('cambiarModo("pedido") no reabre el pedido ni dispara consultas', async () => {
+  const { ctx, llamadas } = await listo();
+  const antes = llamadas.length;
+  ctx.cambiarModo('pedido');
   await esperar();
-  assert.strictEqual(llamadas.filter((l) => l.opts && l.opts.method === 'POST').length, 0);
-  assert.match(dom('mensaje').textContent, /responsable/);
+  assert.strictEqual(ctx.esModoCliente(), true);
+  assert.strictEqual(llamadas.length, antes, 'no dispara GET de pedidos');
+});
+
+test('el POST nunca lleva vincular_cliente ni pedidoId', async () => {
+  const { ctx, llamadas } = await listo();
+  ctx.enviar();
+  await esperar();
+  const post = llamadas.find(function (l) { return l.opts && l.opts.method === 'POST'; });
+  assert.ok(post, 'hizo POST de preparación');
+  const cuerpo = JSON.parse(post.opts.body);
+  assert.strictEqual(cuerpo.modo, 'cliente');
+  assert.strictEqual(cuerpo.pedidoId, undefined);
+  assert.strictEqual(cuerpo.prepId, undefined, 'no vincula preparaciones');
+  assert.ok(!JSON.stringify(cuerpo).includes('vincular_cliente'));
+});
+
+test('doble clic mientras el POST está en vuelo no duplica el registro', async () => {
+  const { ctx, dom, llamadas } = await listo();
+  // fetch controlado: la respuesta queda pendiente hasta que la resolvemos.
+  let resolver = null;
+  const real = ctx.fetch;
+  ctx.fetch = function (url, opts) {
+    const llamada = real(url, opts);
+    return new Promise(function (r) { resolver = function () { r(llamada); }; });
+  };
+  ctx.enviar();
+  ctx.enviar();
+  ctx.enviar();
+  const enVuelo = llamadas.filter(function (l) { return l.opts && l.opts.method === 'POST'; });
+  assert.strictEqual(enVuelo.length, 1, 'tres clics seguidos = un solo POST');
+  assert.strictEqual(vm.runInContext('enviando', ctx), true, 'el guard queda activo mientras espera');
+  assert.strictEqual(dom('btn-enviar').disabled, true, 'actualizarContador respeta el envío en curso');
+  ctx.actualizarContador();
+  assert.strictEqual(dom('btn-enviar').disabled, true, 'ni un refresco rehabilita el botón');
+  resolver();
+  await esperar();
+  await esperar();
+  assert.strictEqual(vm.runInContext('enviando', ctx), false, 'el guard se libera al completar');
+  assert.strictEqual(dom('btn-enviar').textContent, 'Preparar sacas');
+});
+
+test('un error de preparación no borra la selección y permite reintentar', async () => {
+  const { ctx, dom, llamadas } = await listo(function (url) {
+    if (url.indexOf('action=') !== -1) return base(url);
+    return { ok: false, error: 'Saca no disponible para preparar: 261105A1' };
+  });
+  ctx.enviar();
+  await esperar();
+  assert.match(dom('mensaje').textContent, /No se registró: Saca no disponible para preparar/);
+  assert.strictEqual(dom('mensaje').className, 'error');
+  assert.ok(vm.runInContext("!!seleccionadas['261105A1']", ctx), 'conserva la selección');
+  assert.strictEqual(vm.runInContext('enviando', ctx), false, 'libera el guard tras el error del servidor');
+  const posts = llamadas.filter(function (l) { return l.opts && l.opts.method === 'POST'; });
+  assert.strictEqual(posts.length, 1, 'un solo intento por clic');
+});
+
+test('fallo de red: resultado incierto, sin reintento automático', async () => {
+  const { ctx, dom, llamadas } = await listo();
+  ctx.fetch = function (url, opts) {
+    if (opts && opts.method === 'POST') return Promise.reject(new Error('Failed to fetch'));
+    return Promise.resolve({ json: function () { return Promise.resolve(base(url)); } });
+  };
+  ctx.enviar();
+  await esperar();
+  await esperar();
+  assert.match(dom('mensaje').textContent, /No se pudo confirmar: Failed to fetch/);
+  assert.match(dom('mensaje').textContent, /La selección se conserva/);
+  assert.strictEqual(dom('mensaje').className, 'error');
+  assert.strictEqual(vm.runInContext('enviando', ctx), false, 'libera el guard para que el operador decida');
+  assert.ok(vm.runInContext("!!seleccionadas['261105A1']", ctx), 'conserva la selección');
+  const posts = llamadas.filter(function (l) { return l.opts && l.opts.method === 'POST'; });
+  assert.strictEqual(posts.length, 0, 'el fetch simulado rechazó: no hay reintento automático');
 });
