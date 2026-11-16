@@ -1,6 +1,17 @@
-# Preparación de sacas por QR
+# Lector de códigos QR — preparación de sacas
 
 Pantalla: <https://pvcnte.github.io/despachos/>.
+
+**Qué es:** el lector de códigos QR del ecosistema Planificador / Stock / MRP de Planta San
+Bernardo. Prepara reservas de sacas por escaneo, no despacha.
+
+**Espejo privado:** `jorgehonores-debug/despachos` (privado) es la copia de respaldo con la
+historia completa, incluida la rama `backup/qr-antes-simple-20261109`. El repo original es
+`pvcnte/despachos`, que es público y se mantiene como fuente de publicación de GitHub Pages.
+Al cambiar algo: commit y push a los dos (`origin` = espejo privado, `pvcnte` = original).
+
+Mapa del ecosistema:
+`planta-sb-herramientas/hermes/skills_sbjh/sbjh-ecosistema-programas/references/ecosistema-mrp-qr-stock.md`.
 
 ## Cambio del 09-11-2026
 
