@@ -78,4 +78,9 @@ anterior queda respaldado en la rama `backup/qr-antes-simple-20261109`. Las prue
 se versionan como código, pero no entran en el paquete Apps Script. No publicar
 copias de datos ni secretos.
 
+El cambio de cámara del 16-11-2026 se publicó en `main` (commit `0edefed`) en los dos
+remotos y el HTML servido por Pages se comparó por SHA-256 contra el `index.html`
+local: idéntico. Sigue pendiente la prueba en el celular de planta: la verificación
+es de código servido y de suite, no de una cámara real.
+
 [Mapa canónico y contratos](https://github.com/jorgehonores-debug/planta-sb-herramientas/blob/main/hermes/skills_sbjh/sbjh-ecosistema-programas/references/ecosistema-mrp-qr-stock.md). La revisión del 09-11 está actualizada en el workspace compartido y pendiente de sincronizar en GitHub.
