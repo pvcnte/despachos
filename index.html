@@ -731,8 +731,11 @@ function clienteSeleccionado() {
 
   // ============================================================
   // ESCANEO EN VIVO
-  // Cámara trasera por facingMode (no depende de etiquetas), visor proporcional,
-  // lector nativo cuando existe, linterna, reintento con stock fresco y ruta manual.
+  // Cámara trasera por facingMode, escrita DENTRO de config.videoConstraints:
+  // cuando ese campo existe, html5-qrcode ignora el primer argumento de start()
+  // (facingMode o deviceId) y el navegador abriría su cámara por defecto, que en
+  // el celular de planta es la frontal. Visor proporcional, lector nativo cuando
+  // existe, linterna, reintento con stock fresco y ruta manual.
   // ============================================================
   let torchActiva = false;
   const RE_SERIE = /(\d{6}[A-Z]\d{1,2})/;
@@ -746,6 +749,38 @@ function clienteSeleccionado() {
 
   function lectorDisponible() {
     return typeof Html5Qrcode !== "undefined";
+  }
+
+  // --- Elección de cámara -----------------------------------------------
+  // El escáner de planta abre en la trasera. El desplegable permite cambiarla y
+  // esa elección se respeta en la sesión.
+  const RE_TRASERA = /(back|rear|trasera|trasero|environment|world)/i;
+  const RE_FRONTAL = /(front|user|frontal|selfie)/i;
+
+  function esCamaraFrontal(camara) {
+    const etiqueta = String((camara && camara.label) || "");
+    return RE_FRONTAL.test(etiqueta) && !RE_TRASERA.test(etiqueta);
+  }
+
+  // Trasera por etiqueta ("camera2 0, facing back"). Si el navegador no expone
+  // etiquetas, la última que no sea frontal, antes que arriesgar la frontal.
+  function mejorCamaraTrasera(camaras) {
+    const lista = camaras || [];
+    const trasera = lista.filter(function(c) { return RE_TRASERA.test(String((c && c.label) || "")); })[0];
+    if (trasera) return trasera;
+    const otras = lista.filter(function(c) { return !esCamaraFrontal(c); });
+    return otras.length ? otras[otras.length - 1] : (lista[lista.length - 1] || null);
+  }
+
+  // deviceId de la cámara que emite ahora, para que el desplegable no muestre
+  // otra cámara que la abierta.
+  function camaraEnUso() {
+    try {
+      const video = document.getElementById("reader").querySelector("video");
+      const pista = video && video.srcObject && video.srcObject.getVideoTracks
+        ? video.srcObject.getVideoTracks()[0] : null;
+      return pista && pista.getSettings ? (pista.getSettings().deviceId || "") : "";
+    } catch (e) { return ""; }
   }
 
   function iniciarEscaneo() {
@@ -768,10 +803,16 @@ function clienteSeleccionado() {
       useBarCodeDetectorIfSupported: true,
       verbose: false
     });
+    const videoConstraints = camara.deviceId
+      ? { deviceId: camara.deviceId }
+      : { facingMode: "environment" };
+    videoConstraints.width = { ideal: 1280 };
+    videoConstraints.height = { ideal: 720 };
+    videoConstraints.focusMode = "continuous";
     const config = {
       fps: 15,
       qrbox: function(w, h) { const l = Math.floor(Math.min(w, h) * 0.8); return { width: l, height: l }; },
-      videoConstraints: { width: { ideal: 1280 }, height: { ideal: 720 }, focusMode: "continuous" }
+      videoConstraints: videoConstraints
     };
     html5Qr.start(
       camara.deviceId ? camara.deviceId : { facingMode: "environment" },
@@ -789,10 +830,11 @@ function clienteSeleccionado() {
     }).catch(function(err) {
       html5Qr = null;
       if (primerIntento && !camara.deviceId) {
-        // Algunos celulares rechazan facingMode: probar con la última cámara listada.
+        // Algunos celulares rechazan facingMode: probar con la trasera del listado.
         Html5Qrcode.getCameras().then(function(camaras) {
-          if (!camaras || !camaras.length) throw err;
-          arrancarCamara({ deviceId: camaras[camaras.length - 1].id }, false);
+          const trasera = mejorCamaraTrasera(camaras);
+          if (!trasera) throw err;
+          arrancarCamara({ deviceId: trasera.id }, false);
         }).catch(function() { falloCamara(err); });
       } else {
         falloCamara(err);
@@ -816,8 +858,14 @@ function clienteSeleccionado() {
       select.innerHTML = camaras.map(function(c, i) {
         return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
       }).join("");
-      const guardada = localStorage.getItem("camaraDespachos");
-      if (guardada && camaras.some(function(c) { return c.id === guardada; })) select.value = guardada;
+      const guardada = camaras.filter(function(c) { return c.id === localStorage.getItem("camaraDespachos"); })[0];
+      const trasera = mejorCamaraTrasera(camaras);
+      // Marca la cámara abierta. Si no se puede leer, la trasera: una elección
+      // frontal guardada no se restaura sola.
+      const preferida = camaraEnUso()
+        || (guardada && !esCamaraFrontal(guardada) ? guardada.id : "")
+        || (trasera ? trasera.id : "");
+      if (preferida && camaras.some(function(c) { return c.id === preferida; })) select.value = preferida;
       select.style.display = "block";
     }).catch(function() {});
   }

@@ -34,6 +34,28 @@ este cambio de interfaz. El maestro puede derivarse del histórico MRP si está
 vacío y el peso puede usar un nominal del plan: retirar el cruce con pedidos no
 significa retirar esas dependencias internas.
 
+## Cambio del 16-11-2026
+
+El escáner abría la cámara frontal del celular. Causa comprobada en la librería
+`html5-qrcode` 2.3.8 (`var a = c ? s.videoConstraints : h.createVideoConstraints(t)`):
+si el config trae `videoConstraints`, la librería usa **esas** constraints y descarta
+el primer argumento de `start()` (`facingMode` o `deviceId`). El lector pedía
+`{facingMode:"environment"}` en el primer argumento y `width/height/focusMode` en
+`videoConstraints`, así que `getUserMedia` nunca recibía `facingMode` y el navegador
+abría su cámara por defecto, la frontal en el celular de planta. Por el mismo camino
+ignorado viajaba el `deviceId` del desplegable de cámaras: elegir otra cámara no
+cambiaba nada.
+
+- La cámara pedida se escribe ahora **dentro de `videoConstraints`** (`facingMode`
+  o `deviceId`), que es lo que la librería respeta. El desplegable sí cambia de cámara.
+- Reintento cuando el celular rechaza `facingMode`: se elige la trasera por etiqueta
+  (`camera2 0, facing back`), no la última del listado, que podía ser la frontal.
+- El desplegable marca la cámara que está emitiendo y no restaura sola una elección
+  frontal guardada en `localStorage`.
+- Sin cambios de interfaz ni de payload. El backend no cambia: no requiere publicación.
+- Pruebas nuevas en `tests/frontend_camara.test.js`, verificadas contra el HTML previo
+  (6 de 6 fallan antes, 36 de 36 pasan después).
+
 ## Pruebas
 
 ```sh
@@ -41,9 +63,10 @@ node --test tests/*.test.js
 ```
 
 La suite cubre cliente válido, maestro vacío/caído, ausencia de llamadas a pedidos
-y vinculación, payload, guard de envío único, conservación de selección y error
-de red. No ejecuta preparaciones reales. Las pruebas puras históricas de peso,
-condición y compatibilidad permanecen, sin activar un flujo por pedido en la UI.
+y vinculación, payload, guard de envío único, conservación de selección, error de
+red y la cámara con la que abre el escáner. No ejecuta preparaciones reales. Las
+pruebas puras históricas de peso, condición y compatibilidad permanecen, sin activar
+un flujo por pedido en la UI.
 
 ## Publicación y arquitectura
 
