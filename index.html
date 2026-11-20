@@ -803,9 +803,10 @@ function clienteSeleccionado() {
       useBarCodeDetectorIfSupported: true,
       verbose: false
     });
+    const modo = camara.facingMode === "user" ? "user" : "environment";
     const videoConstraints = camara.deviceId
       ? { deviceId: camara.deviceId }
-      : { facingMode: "environment" };
+      : { facingMode: modo };
     videoConstraints.width = { ideal: 1280 };
     videoConstraints.height = { ideal: 720 };
     videoConstraints.focusMode = "continuous";
@@ -815,7 +816,7 @@ function clienteSeleccionado() {
       videoConstraints: videoConstraints
     };
     html5Qr.start(
-      camara.deviceId ? camara.deviceId : { facingMode: "environment" },
+      camara.deviceId ? camara.deviceId : { facingMode: modo },
       config,
       function(textoLeido) {
         const serie = extraerSerie(textoLeido);
@@ -826,7 +827,7 @@ function clienteSeleccionado() {
       function() {}
     ).then(function() {
       prepararLinterna();
-      cargarListaCamaras();
+      cargarListaCamaras(modo);
     }).catch(function(err) {
       html5Qr = null;
       if (primerIntento && !camara.deviceId) {
@@ -851,29 +852,22 @@ function clienteSeleccionado() {
     detenerEscaneo();
   }
 
-  function cargarListaCamaras() {
+  // Solo dos opciones: trasera (por defecto) y delantera, por facingMode. No se
+  // listan los lentes del celular (el iPhone expone 7 y varios fallan al abrir).
+  function cargarListaCamaras(modo) {
     Html5Qrcode.getCameras().then(function(camaras) {
       if (!camaras || camaras.length < 2) return;
       const select = document.getElementById("cam-select");
-      select.innerHTML = camaras.map(function(c, i) {
-        return '<option value="' + c.id + '">' + (c.label || ("Cámara " + (i + 1))) + '</option>';
-      }).join("");
-      const guardada = camaras.filter(function(c) { return c.id === localStorage.getItem("camaraDespachos"); })[0];
-      const trasera = mejorCamaraTrasera(camaras);
-      // Marca la cámara abierta. Si no se puede leer, la trasera: una elección
-      // frontal guardada no se restaura sola.
-      const preferida = camaraEnUso()
-        || (guardada && !esCamaraFrontal(guardada) ? guardada.id : "")
-        || (trasera ? trasera.id : "");
-      if (preferida && camaras.some(function(c) { return c.id === preferida; })) select.value = preferida;
+      select.innerHTML = '<option value="environment">Cámara trasera</option>'
+        + '<option value="user">Cámara delantera</option>';
+      select.value = modo === "user" ? "user" : "environment";
       select.style.display = "block";
     }).catch(function() {});
   }
 
   function cambiarCamara() {
-    const camaraId = document.getElementById("cam-select").value;
-    localStorage.setItem("camaraDespachos", camaraId);
-    const reiniciar = function() { html5Qr = null; arrancarCamara({ deviceId: camaraId }, false); };
+    const modo = document.getElementById("cam-select").value === "user" ? "user" : "environment";
+    const reiniciar = function() { html5Qr = null; arrancarCamara({ facingMode: modo }, modo === "environment"); };
     if (html5Qr) html5Qr.stop().then(function() { html5Qr.clear(); reiniciar(); }).catch(reiniciar);
     else reiniciar();
   }
