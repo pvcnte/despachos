@@ -192,6 +192,8 @@
 
     #contador { font-size: 0.85rem; color: #2e7d32; font-weight: bold; margin-bottom: 12px; }
 
+    #frescura-stock { font-size: 0.75rem; color: #888; margin-bottom: 8px; }
+
     .serie-item {
       display: flex;
       align-items: center;
@@ -381,6 +383,7 @@
     <button id="btn-cerrar-scanner" onclick="detenerEscaneo()">✕ Cerrar cámara</button>
     <div id="serie-escaneada"></div>
 
+    <div id="frescura-stock"></div>
     <div id="contador">0 series seleccionadas</div>
     <div id="lista-series">
       <div class="loading">Cargando stock...</div>
@@ -525,7 +528,8 @@ function clienteSeleccionado() {
     cargarLogo();
     cargarStock();
     cargarClientes();
-    setInterval(cargarStock, 600000); // refresco cada 10 min
+    setInterval(cargarStock, 120000); // refresco cada 2 min: se ven pronto los cambios que otros hacen en la hoja
+    setInterval(pintarFrescura, 30000); // recalcula los minutos sin volver a consultar
   }
   // ============================================================// LOGO
   // ============================================================
@@ -560,11 +564,58 @@ function clienteSeleccionado() {
         render();
         renderChips();
         actualizarContador();
+        cargarFrescura();
       })
       .catch(function(err) {
         document.getElementById("lista-series").innerHTML =
           '<div class="empty">Error al cargar el stock: ' + err.message + '</div>';
       });
+  }
+
+  // ============================================================
+  // FRESCURA DEL STOCK: cuándo se actualizó la hoja por última vez
+  // (incluye los cambios que otros hacen en Sheets). Si no se puede
+  // saber, se avisa sin tocar el stock ya pintado.
+  // ============================================================
+  let frescuraAt = null; // instante (ms) del último cambio en la hoja
+
+  function cargarFrescura() {
+    let pedido;
+    try {
+      pedido = fetch(API_URL + "?action=frescura&token=" + encodeURIComponent(TOKEN));
+    } catch (e) { // fetch puede fallar de inmediato: no debe romper el stock
+      frescuraAt = null;
+      pintarFrescura();
+      return;
+    }
+    pedido
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d || d.ok !== true || !d.at) throw new Error("sin hora");
+        const t = new Date(d.at).getTime();
+        if (isNaN(t)) throw new Error("hora inválida");
+        frescuraAt = t;
+        pintarFrescura();
+      })
+      .catch(function() {
+        frescuraAt = null;
+        pintarFrescura();
+      });
+  }
+
+  function pintarFrescura() {
+    const el = document.getElementById("frescura-stock");
+    if (!el) return;
+    if (!frescuraAt) {
+      el.textContent = "Hora de actualización no disponible";
+      return;
+    }
+    const minutos = Math.max(0, Math.floor((Date.now() - frescuraAt) / 60000));
+    const d = new Date(frescuraAt);
+    const hhmm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    el.textContent = minutos < 1
+      ? "Stock actualizado hace menos de 1 min (" + hhmm + ")"
+      : "Stock actualizado hace " + minutos + " min (" + hhmm + ")";
   }
 
   // Lista visible según filtro PCR y búsqueda
