@@ -80,7 +80,7 @@ test('el cliente es un desplegable del maestro con opción inicial vacía', asyn
   const sel = dom('cliente');
   assert.strictEqual(sel.children[0].value, '', 'opción inicial sin cliente');
   assert.match(String(sel.children[0].text), /Seleccionar cliente/i);
-  assert.deepStrictEqual(sel.children.slice(1).map(function (o) { return o.value; }), ['RPCI', 'MALUPLAST']);
+  assert.deepStrictEqual(sel.children.slice(1, -1).map(function (o) { return o.value; }), ['RPCI', 'MALUPLAST']);
   assert.match(dom('clientes-estado').textContent, /2 clientes/);
   assert.strictEqual(leer(ctx, 'clienteSeleccionado()'), '', 'sin elegir no hay cliente válido');
   assert.strictEqual(dom('btn-enviar').disabled, true, 'sin sacas y sin cliente no se registra');

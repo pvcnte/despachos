@@ -86,7 +86,7 @@ test('el cliente es un desplegable del maestro con opción inicial vacía', asyn
   const sel = dom('cliente');
   assert.strictEqual(sel.children[0].value, '', 'opción inicial sin cliente');
   assert.match(String(sel.children[0].text), /Seleccionar cliente/i);
-  const valores = sel.children.slice(1).map(function (o) { return o.value; });
+  const valores = sel.children.slice(1, -1).map(function (o) { return o.value; });
   assert.deepStrictEqual(valores, ['RPCI', 'MALUPLAST']);
   assert.match(dom('clientes-estado').textContent, /2 clientes/);
 });
@@ -175,4 +175,34 @@ test('si el maestro no carga, no se habilita el registro', async () => {
   assert.strictEqual(leer(ctx, 'clientesMaestro.length'), 0);
   assert.strictEqual(leer(ctx, 'clienteSeleccionado()'), '');
   assert.strictEqual(dom('btn-enviar').disabled, true);
+});
+
+test('Otro cliente…: con texto envía ese nombre recortado; vacío no es válido; la lista sigue igual', async () => {
+  const { ctx, dom, llamadas, html } = cargar(base);
+  set(ctx, 'TOKEN', '1234');
+  ctx.cargarClientes();
+  await esperar();
+  assert.match(html, /id="cliente-otro"[^>]*maxlength="60"/);
+  const sel = dom('cliente');
+  assert.strictEqual(sel.children[sel.children.length - 1].text, 'Otro cliente…');
+  // cliente de la lista
+  sel.value = 'RPCI';
+  assert.strictEqual(ctx.clienteSeleccionado(), 'RPCI');
+  // Otro cliente… vacío = inválido
+  sel.value = sel.children[sel.children.length - 1].value;
+  dom('cliente-otro').value = '   ';
+  assert.strictEqual(ctx.clienteSeleccionado(), '');
+  // Otro cliente… con texto
+  dom('cliente-otro').value = '  Plásticos Nuevos SpA ';
+  assert.strictEqual(ctx.clienteSeleccionado(), 'Plásticos Nuevos SpA');
+  dom('fecha').value = '2026-11-09';
+  dom('responsable').value = 'Willians T.';
+  set(ctx, 'seleccionadas', { '261105A1': SACAS[0] });
+  ctx.enviar();
+  await esperar();
+  const post = llamadas.find(function (l) { return l.opts && l.opts.method === 'POST'; });
+  assert.ok(post, 'hizo POST');
+  const cuerpo = JSON.parse(post.opts.body);
+  assert.strictEqual(cuerpo.modo, 'cliente');
+  assert.strictEqual(cuerpo.cliente, 'Plásticos Nuevos SpA');
 });

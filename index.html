@@ -341,7 +341,8 @@
     </select>
 
     <label class="campo" for="cliente">Cliente</label>
-<select id="cliente" required onchange="actualizarContador()"><option value="">Seleccionar cliente</option></select>
+<select id="cliente" required onchange="clienteCambio()"><option value="">Seleccionar cliente</option><option value="__otro__">Otro cliente…</option></select>
+<input type="text" id="cliente-otro" maxlength="60" placeholder="Nombre del cliente" autocomplete="off" style="display:none" oninput="actualizarContador()">
 <div id="clientes-estado" role="status" aria-live="polite"></div>
 <div id="aviso-pedido" role="status" aria-live="polite"></div>
   </div>
@@ -456,22 +457,38 @@
       if (sel) {
         sel.replaceChildren(new Option("Seleccionar cliente", ""));
         clientesMaestro.forEach(function (c) { sel.append(new Option(String(c.nombre), String(c.nombre))); });
-        if (anterior && clientesMaestro.some(function (c) { return String(c.nombre) === anterior; })) sel.value = anterior;
+        sel.append(new Option("Otro cliente…", CLIENTE_OTRO));
+        if (anterior && (anterior === CLIENTE_OTRO || clientesMaestro.some(function (c) { return String(c.nombre) === anterior; }))) sel.value = anterior;
+        clienteCambio();
       }
       if (estado) { estado.textContent = clientesMaestro.length + " clientes disponibles."; estado.style.display = "block"; }
       actualizarContador();
     })
     .catch(function (e) {
-      // Sin lista no se registra: el cliente no se escribe a mano.
+      // Sin lista no se bloquea: queda «Otro cliente…» para escribir el nombre.
       clientesMaestro = [];
-      if (estado) { estado.textContent = "No se pudo cargar la lista de clientes (" + e.message + "). Recarga la página."; estado.style.display = "block"; }
+      if (sel && !Array.prototype.some.call(sel.options || [], function (o) { return o.value === CLIENTE_OTRO; })) sel.append(new Option("Otro cliente…", CLIENTE_OTRO));
+      if (sel) sel.value = CLIENTE_OTRO;
+      clienteCambio();
+      if (estado) { estado.textContent = "No se pudo cargar la lista de clientes (" + e.message + "). Escribe el nombre del cliente."; estado.style.display = "block"; }
       actualizarContador();
     });
 }
-// Cliente válido = uno de la lista. Vacío o texto suelto no sirve.
+// Cliente válido = uno de la lista, o el texto escrito (recortado, no vacío) si se elige «Otro cliente…».
+const CLIENTE_OTRO = "__otro__";
+function clienteCambio() {
+  const sel = document.getElementById("cliente");
+  const otro = document.getElementById("cliente-otro");
+  if (otro) otro.style.display = sel && sel.value === CLIENTE_OTRO ? "block" : "none";
+  actualizarContador();
+}
 function clienteSeleccionado() {
   const sel = document.getElementById("cliente");
   const nombre = sel ? String(sel.value || "").trim() : "";
+  if (nombre === CLIENTE_OTRO) {
+    const otro = document.getElementById("cliente-otro");
+    return otro ? String(otro.value || "").trim() : "";
+  }
   return clientesMaestro.some(function (c) { return String(c.nombre) === nombre; }) ? nombre : "";
 }
 // Misma regla que el backend: misma condición y mismo PCR o el sustituto del
@@ -756,7 +773,7 @@ function clienteSeleccionado() {
     const el = document.getElementById("aviso-pedido");
     if (!el) return;
     if (esModoCliente()) {
-      const cli = String(document.getElementById("cliente").value || "").trim();
+      const cli = clienteSeleccionado();
       el.textContent = "Sin pedido del planificador: " + Object.keys(seleccionadas).length + " saca(s), " +
         ev.total.toFixed(2) + " t para " + (cli || "el cliente") + ". Se reserva el stock y la fecha de despacho queda pendiente.";
       el.className = "ok";
